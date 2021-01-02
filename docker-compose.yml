@@ -1,0 +1,30 @@
+version: '3'
+
+services:
+  main:
+    build: .
+    networks:
+      - net
+    depends_on:
+      - redis
+      - mongodb
+  redis:
+    image: "redis:alpine"
+    ports:
+      - "6379:6379"
+    networks:
+      - net
+  mongodb:
+    image: "mongo:latest"
+    volumes:
+      - ./mongo-volume:/data/db
+    ports:
+      - "27017:27017"
+      - "27018:27018"
+      - "27019:27019"
+    networks:
+      - net
+
+networks:
+  net:
+    driver: bridge

@@ -1,0 +1,6 @@
+flask
+ccxt
+psycopg2
+redis
+flask_crontab
+git+https://github.com/manahl/arctic.git
