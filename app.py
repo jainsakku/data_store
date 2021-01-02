@@ -13,38 +13,40 @@ import pandas as pd
 
 app = Flask(__name__)
 crontab = Crontab(app)
-store = Arctic("0.0.0.0")
+store = Arctic("localhost")
 store.initialize_library("BINANCE5")
 symbols = []
 
 
 # mongo = PyMongo(app)
-def _fetch_result(symbol):
-    data = binance.fetch_ohlcv(symbol, "1m", int((time.time() // 60 - 1) * 60000))
-    r = redis.Redis(host='localhost', port=6379, db=0)
-    library = store['BINANCE5']
-    # print(data)
-    if len(data) > 0:
-        if not r.exists(str(int((time.time() // 60) * 60000)) + symbol + "-1m"):
-            df = pd.DataFrame([data[0]], columns=['t', 'o', 'h', 'l', 'c', 'v'])
-            r.set(str(int((time.time() // 60) * 60000)) + symbol + "-1m", str(json.dumps(data[0])))
-            library.append(symbol + "-1m", df)
-            # print(df)
-        return data[0]
-
-    return []
 
 
 @crontab.job()
 @app.route('/get1m')
 def index():
     count = 0
+    def _fetch_result(symbol):
+        data = binance.fetch_ohlcv(symbol, "1m", int((time.time() // 60 - 1) * 60000))
+        r = redis.Redis(host='localhost', port=6379, db=0)
+        library = store['BINANCE5']
+        # print(data)
+        if len(data) > 0:
+            if not r.exists(str(int((time.time() // 60) * 60000)) + symbol + "-1m"):
+                df = pd.DataFrame([data[0]], columns=['t', 'o', 'h', 'l', 'c', 'v'])
+                r.set(str(int((time.time() // 60) * 60000)) + symbol + "-1m", str(json.dumps(data[0])))
+                library.append(symbol + "-1m", df)
+                # print(df)
+            return data[0]
+
+        return []
     try:
         exchange_id = 'binance'
         r = redis.Redis(host='localhost', port=6379, db=0)
         library = store['BINANCE2']
         binance = ccxt.binance()
         start = time.time()
+        symbols=json.loads(r.get("symbols"))
+        print(symbols)
         # print(int((time.time()//60-1)*60000))
         dd = {}
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(symbols)) as executor:
@@ -258,7 +260,8 @@ if __name__ == "__main__":
     for row in binance.fetch_markets():
         if row['active']:
             symbols.append(row['symbol'])
-        if len(symbols) >= 1100:
-            break
+    r = redis.Redis(host='localhost', port=6379, db=0)
+    r.set("symbols",str(json.dumps(symbols)))
     print(len(symbols))
     app.run(debug=True)
+    
