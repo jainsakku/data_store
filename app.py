@@ -1,6 +1,5 @@
 from flask import Flask
 import ccxt
-import psycopg2
 import datetime
 import time
 import redis
@@ -93,10 +92,11 @@ def index():
 @crontab.job(minute="*/5")
 @app.route('/get5m')
 def test():
-    # time.sleep(30)
+    #time.sleep(30)
     start = time.time()
     r = redis.Redis(host='localhost', port=6379, db=0)
     library = store['BINANCE_TEST']
+    symbols = json.loads(r.get("symbols"))
     for symbol in symbols:
         volume = 0.0
         high = -sys.maxsize
@@ -126,12 +126,12 @@ def test():
         output_list = [int((time.time() // 60) * 60000), op, high, low, close, volume]
         if not r.exists(str(int((time.time() // 60) * 60000)) + symbol + "-5m"):
             r.set(str(int((time.time() // 60) * 60000)) + symbol + "-5m", str(json.dumps(output_list)))
-            df = pd.DataFrame(output_list, columns=['t', 'o', 'h', 'l', 'c', 'v'])
+            df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])
             library.write(symbol + '-5m', df)
 
     end = time.time()
     print(f'{end - start:.2f}')
-    return str(json.dumps(output_list))
+    return "5m Job executed succesfully"
 
 
 @crontab.job(minute="*/15")
@@ -140,6 +140,7 @@ def process_15m_data():
     time.sleep(20)
     r = redis.Redis(host='localhost', port=6379, db=0)
     library = store['BINANCE_TEST']
+    symbols = json.loads(r.get("symbols"))
     for symbol in symbols:
         volume = 0.0
         high = -sys.maxsize
@@ -163,10 +164,10 @@ def process_15m_data():
         output_list = [int(time.time() * 1000), op, high, low, close, volume]
         if not r.exists(str(int((time.time() // 60) * 60000)) + symbol + "-15m"):
             r.set(str(int((time.time() // 60) * 60000)) + symbol + "-15m", str(json.dumps(output_list)))
-            df = pd.DataFrame(output_list, columns=['t', 'o', 'h', 'l', 'c', 'v'])
+            df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])
             library.write(symbol + '-15m', df)
 
-    return str(json.dumps(output_list))
+    return "15m job executed succesfully"
 
 
 @crontab.job(minute="*/30")
@@ -175,6 +176,7 @@ def process_30m_data():
     time.sleep(40)
     r = redis.Redis(host='localhost', port=6379, db=0)
     library = store['BINANCE_TEST']
+    symbols = json.loads(r.get("symbols"))
     for symbol in symbols:
         volume = 0.0
         high = -sys.maxsize
@@ -198,16 +200,17 @@ def process_30m_data():
         output_list = [(int(time.time() // 60) * 60000), op, high, low, close, volume]
         if not r.exists(str(int((time.time() // 60) * 60000)) + symbol + "-30m"):
             r.set(str(int((time.time() // 60) * 60000)) + symbol + "-30m", str(json.dumps(output_list)))
-            pd.DataFrame(output_list, columns=['t', 'o', 'h', 'l', 'c', 'v'])
+            pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])
             library.write(symbol + '-30m', pd)
 
-    return str(json.dumps(output_list))
+    return "30m job executed succesfully"
 
 
 @crontab.job(minute="*/60")
 @app.route('/get60m')
 def process_60m_data():
     time.sleep(40)
+    symbols = json.loads(r.get("symbols"))
     r = redis.Redis(host='localhost', port=6379, db=0)
     library = store['BINANCE_TEST']
     for symbol in symbols:
@@ -233,10 +236,10 @@ def process_60m_data():
         output_list = [(int(time.time() // 60) * 60000), op, high, low, close, volume]
         if not r.exists(str(int((time.time() // 60) * 60000)) + symbol + "-60m"):
             r.set(str(int((time.time() // 60) * 60000)) + symbol + "-60m", str(json.dumps(output_list)))
-            pd.DataFrame(output_list, columns=['t', 'o', 'h', 'l', 'c', 'v'])
+            pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])
             library.write(symbol + '-60m', pd)
 
-    return str(json.dumps(output_list))
+    return "60m job executed succesfully"
 
 
 @app.route('/test')
