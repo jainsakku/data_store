@@ -14,7 +14,7 @@ import pandas as pd
 app = Flask(__name__)
 crontab = Crontab(app)
 store = Arctic("localhost")
-store.initialize_library("BINANCE5")
+store.initialize_library("BINANCE_TEST")
 symbols = []
 
 
@@ -28,7 +28,7 @@ def index():
     def _fetch_result(symbol):
         data = binance.fetch_ohlcv(symbol, "1m", int((time.time() // 60 - 1) * 60000))
         r = redis.Redis(host='localhost', port=6379, db=0)
-        library = store['BINANCE5']
+        library = store['BINANCE_TEST']
         # print(data)
         if len(data) > 0:
             if not r.exists(str(int((time.time() // 60) * 60000)) + symbol + "-1m"):
@@ -42,7 +42,7 @@ def index():
     try:
         exchange_id = 'binance'
         r = redis.Redis(host='localhost', port=6379, db=0)
-        library = store['BINANCE2']
+        library = store['BINANCE_TEST']
         binance = ccxt.binance()
         start = time.time()
         symbols=json.loads(r.get("symbols"))
@@ -96,7 +96,7 @@ def test():
     # time.sleep(30)
     start = time.time()
     r = redis.Redis(host='localhost', port=6379, db=0)
-    library = store['BINANCE2']
+    library = store['BINANCE_TEST']
     for symbol in symbols:
         volume = 0.0
         high = -sys.maxsize
@@ -139,7 +139,7 @@ def test():
 def process_15m_data():
     time.sleep(20)
     r = redis.Redis(host='localhost', port=6379, db=0)
-    library = store['BINANCE']
+    library = store['BINANCE_TEST']
     for symbol in symbols:
         volume = 0.0
         high = -sys.maxsize
@@ -174,7 +174,7 @@ def process_15m_data():
 def process_30m_data():
     time.sleep(40)
     r = redis.Redis(host='localhost', port=6379, db=0)
-    library = store['BINANCE2']
+    library = store['BINANCE_TEST']
     for symbol in symbols:
         volume = 0.0
         high = -sys.maxsize
@@ -209,7 +209,7 @@ def process_30m_data():
 def process_60m_data():
     time.sleep(40)
     r = redis.Redis(host='localhost', port=6379, db=0)
-    library = store['BINANCE2']
+    library = store['BINANCE_TEST']
     for symbol in symbols:
         volume = 0.0
         high = -sys.maxsize
@@ -242,7 +242,7 @@ def process_60m_data():
 @app.route('/test')
 def tt():
     li = []
-    library = store['BINANCE5']
+    library = store['BINANCE_TEST']
     for symbol in symbols:
         try:
             print(symbol)
