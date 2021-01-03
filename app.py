@@ -21,7 +21,7 @@ from email import encoders
 app = Flask(__name__)
 crontab = Crontab(app)
 store = Arctic("localhost")  # connecting to local mongo server
-store.initialize_library("BINANCE")  # initializing library for the arctic
+store.initialize_library("BINANCE_EXCHANGE")  # initializing library for the arctic
 
 
 # cron job to fetch the 1 minute result for all markets
@@ -35,17 +35,16 @@ def process_1m_data():
         data = binance.fetch_ohlcv(symbol, "1m",
                                    int((time.time() // 60 - 1) * 60000))  # fetching ohlcv data from binance
         store = Arctic("localhost")  # connecting to local mongo server
-        library = store['BINANCE']
+        library = store['BINANCE_EXCHANGE']
         if len(data) > 0:
             if not r.exists(str(int((start // 60) * 60000)) + symbol + "-1m"):  # check so as to prevent duplicate data in same interval
                 try:
 
                     r.set(str(int((start // 60) * 60000)) + symbol + "-1m",
                           str(json.dumps(data[0])), ex=10*60)  # updating redis cache with the fetched interval
-                    data[0][0] = pd.to_datetime(data[0][0] / 1000, unit='s').tz_localize(
-                        "UTC")  # converting epochs to timestamp utc
+                    data[0][0] = pd.to_datetime(data[0][0] / 1000, unit='s').tz_localize("GMT")  # converting epochs to timestamp utc
                     df = pd.DataFrame([data[0]], columns=['t', 'o', 'h', 'l', 'c', 'v'])
-                    df.set_index('t')
+                    df.set_index('t', inplace=True)
                     library.write(symbol + "-1m", df)  # writing dataframe to the arctic db
                 except Exception as e:
                     print(e)
@@ -85,7 +84,7 @@ def process_5m_data():
     start = time.time()
     r = redis.Redis(host='localhost', port=6379, db=0)
     store = Arctic("localhost")  # connecting to local mongo server
-    library = store['BINANCE']
+    library = store['BINANCE_EXCHANGE']
     symbols = json.loads(r.get("symbols"))
     for symbol in symbols:
         volume = 0.0
@@ -111,9 +110,9 @@ def process_5m_data():
         output_list = [int((time.time() // 60) * 60000), open, high, low, close, volume]
         if not r.exists(str(int((start // 60) * 60000)) + symbol + "-5m"):
             r.set(str(int((start // 60) * 60000)) + symbol + "-5m", str(json.dumps(output_list)), ex=20*60)
-            output_list[0] = pd.to_datetime(output_list[0] / 1000, unit='s').tz_localize("UTC")
+            output_list[0] = pd.to_datetime(output_list[0] / 1000, unit='s').tz_localize("GMT")
             df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])
-            df.set_index('t')
+            df.set_index('t', inplace=True)
             library.write(symbol + '-5m', df)
 
     end = time.time()
@@ -131,7 +130,7 @@ def process_15m_data():
     start = time.time()
     r = redis.Redis(host='localhost', port=6379, db=0)
     store = Arctic("localhost")  # connecting to local mongo server
-    library = store['BINANCE']
+    library = store['BINANCE_EXCHANGE']
     symbols = json.loads(r.get("symbols"))
     for symbol in symbols:
         volume = 0.0
@@ -156,9 +155,9 @@ def process_15m_data():
         output_list = [int(time.time()), open, high, low, close, volume]
         if not r.exists(str(int((start // 60) * 60000)) + symbol + "-15m"):
             r.set(str(int((start // 60) * 60000)) + symbol + "-15m", str(json.dumps(output_list)), ex=40*60)
-            output_list[0] = pd.to_datetime(output_list[0], unit='s').tz_localize("UTC")
+            output_list[0] = pd.to_datetime(output_list[0], unit='s').tz_localize("GMT")
             df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])  # Dataframe to feed in the db
-            df.set_index('t')
+            df.set_index('t', inplace=True)
             library.write(symbol + '-15m', df)
 
     return "15m job executed successfully"
@@ -174,7 +173,7 @@ def process_30m_data():
     start = time.time()
     r = redis.Redis(host='localhost', port=6379, db=0)
     store = Arctic("localhost")  # connecting to local mongo server
-    library = store['BINANCE']
+    library = store['BINANCE_EXCHANGE']
     symbols = json.loads(r.get("symbols"))
     for symbol in symbols:
         volume = 0.0
@@ -199,9 +198,9 @@ def process_30m_data():
         output_list = [(int(time.time() // 60) * 60000), open, high, low, close, volume]
         if not r.exists(str(int((start // 60) * 60000)) + symbol + "-30m"):
             r.set(str(int((start // 60) * 60000)) + symbol + "-30m", str(json.dumps(output_list)), ex=70*60)
-            output_list[0] = pd.to_datetime(output_list[0] / 1000, unit='s').tz_localize("UTC")
+            output_list[0] = pd.to_datetime(output_list[0] / 1000, unit='s').tz_localize("GMT")
             df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])
-            df.set_index('t')
+            df.set_index('t', inplace=True)
             library.write(symbol + '-30m', df)
 
     return "30m job executed successfully"
@@ -218,7 +217,7 @@ def process_60m_data():
     r = redis.Redis(host='localhost', port=6379, db=0)
     symbols = json.loads(r.get("symbols"))
     store = Arctic("localhost")  # connecting to local mongo server
-    library = store['BINANCE']
+    library = store['BINANCE_EXCHANGE']
     for symbol in symbols:
         volume = 0.0
         high = -sys.maxsize
@@ -242,9 +241,9 @@ def process_60m_data():
         output_list = [(int(time.time() // 60) * 60000), open, high, low, close, volume]
         if not r.exists(str(int((start // 60) * 60000)) + symbol + "-60m"):
             r.set(str(int((start // 60) * 60000)) + symbol + "-60m", str(json.dumps(output_list)), ex=100*60)
-            output_list[0] = pd.to_datetime(output_list[0] / 1000, unit='s').tz_localize("UTC")
+            output_list[0] = pd.to_datetime(output_list[0] / 1000, unit='s').tz_localize("GMT")
             df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])
-            df.set_index('t')
+            df.set_index('t', inplace=True)
             library.write(symbol + '-60m', df)
 
     return "60m job executed successfully"
@@ -257,7 +256,7 @@ def process_60m_data():
 @app.route('/check_data_quality')
 def check_data_quality():
     store = Arctic("localhost")  # connecting to local mongo server
-    library = store['BINANCE']
+    library = store['BINANCE_EXCHANGE']
     r = redis.Redis(host='localhost', port=6379, db=0)
     symbols = json.loads(r.get("symbols"))
     dr = DateRange(datetime.datetime.utcfromtimestamp(time.time()) - datetime.timedelta(hours=24),
