@@ -260,7 +260,7 @@ def check_data_quality():
     library = store['BINANCE']
     r = redis.Redis(host='localhost', port=6379, db=0)
     symbols = json.loads(r.get("symbols"))
-    dr = DateRange(datetime.datetime.utcfromtimestamp(time.time()) - datetime.timedelta(hours=1),
+    dr = DateRange(datetime.datetime.utcfromtimestamp(time.time()) - datetime.timedelta(hours=24),
                    datetime.datetime.utcfromtimestamp(time.time()))  # DateRange for last 24 hours in utc timestamp
     count = 0
     with open("report.txt", 'w') as rep:  # File that is attached in the mail
