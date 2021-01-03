@@ -81,7 +81,7 @@ def process_1m_data():
 @crontab.job(minute="*/5")
 @app.route('/get5m')
 def process_5m_data():
-    time.sleep(35)  # Delay to provide mutual exclusiveness for 1m job
+    time.sleep(10)  # Delay to provide mutual exclusiveness for 1m job
     start = time.time()
     r = redis.Redis(host='localhost', port=6379, db=0)
     store = Arctic("localhost")  # connecting to local mongo server
@@ -93,7 +93,7 @@ def process_5m_data():
         low = sys.maxsize
         open = 0.0
         close = 0.0
-        for i in range(0, 5):
+        for i in reversed(range(1, 6)):
             time_epochs = int((time.time() // 60 - i) * 60000)  # Fetching data for the last 5 minutes
             key = (str(time_epochs) + symbol + "-1m")
 
@@ -127,7 +127,7 @@ def process_5m_data():
 @crontab.job(minute="*/15")
 @app.route('/get15m')
 def process_15m_data():
-    time.sleep(40)  # Delay to provide mutual exclusiveness for 5m job
+    time.sleep(25)  # Delay to provide mutual exclusiveness for 5m job
     start = time.time()
     r = redis.Redis(host='localhost', port=6379, db=0)
     store = Arctic("localhost")  # connecting to local mongo server
@@ -139,7 +139,7 @@ def process_15m_data():
         low = sys.maxsize
         open = 0.0
         close = 0.0
-        for i in range(0, 3):  # Fetching data from cache for last 15 minutes from 5 minute interval
+        for i in reversed(range(0, 3)):  # Fetching data from cache for last 15 minutes from 5 minute interval
             time_epochs = int((time.time() // 60 - i * 5) * 60000)
             key = str(time_epochs) + symbol + "-5m"
             if r.exists(key):  # check to avoid duplicate elements
@@ -170,7 +170,7 @@ def process_15m_data():
 @crontab.job(minute="*/30")
 @app.route('/get30m')
 def process_30m_data():
-    time.sleep(45)  # delay to provide space to 15m job
+    time.sleep(35)  # delay to provide space to 15m job
     start = time.time()
     r = redis.Redis(host='localhost', port=6379, db=0)
     store = Arctic("localhost")  # connecting to local mongo server
@@ -182,7 +182,7 @@ def process_30m_data():
         low = sys.maxsize
         open = 0.0
         close = 0.0
-        for i in range(0, 2):  # Fetching Data for last 15 minute interval
+        for i in reversed(range(0, 2)):  # Fetching Data for last 15 minute interval
             time_epochs = int((time.time() // 60 - i * 15) * 60000)
             key = str(time_epochs) + symbol + "-15m"
             if r.exists(key):
@@ -213,7 +213,7 @@ def process_30m_data():
 @crontab.job(minute="*/60")
 @app.route('/get60m')
 def process_60m_data():
-    time.sleep(50)  # Delay to provide buffer space to 30 m job
+    time.sleep(45)  # Delay to provide buffer space to 30 m job
     start = time.time()
     r = redis.Redis(host='localhost', port=6379, db=0)
     symbols = json.loads(r.get("symbols"))
@@ -225,7 +225,7 @@ def process_60m_data():
         low = sys.maxsize
         open = 0.0
         close = 0.0
-        for i in range(0, 2):
+        for i in reversed(range(0, 2)):
             time_epochs = int((time.time() // 60 - i * 30) * 60000)
             key = str(time_epochs) + symbol + "-30m"
             if r.exists(key):
