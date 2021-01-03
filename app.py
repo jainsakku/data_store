@@ -20,40 +20,45 @@ from email import encoders
 
 app = Flask(__name__)
 crontab = Crontab(app)
-store = Arctic("localhost")
-store.initialize_library("BINANCE_TEST_10")
+store = Arctic("localhost")  # connecting to local mongo server
+store.initialize_library("BINANCE-final")  # initializing library for the arctic
 
 
+# cron job to fetch the 1 minute result for all markets
+# from the binance exchange and store them in redis cache for fast processing for higher intervals
 @crontab.job()
 @app.route('/get1m')
 def process_1m_data():
     count = 0
 
     def _fetch_result(symbol):
-        data = binance.fetch_ohlcv(symbol, "1m", int((time.time() // 60 - 1) * 60000))
-        r = redis.Redis(host='localhost', port=6379, db=0)
-        library = store['BINANCE_TEST_10']
+        data = binance.fetch_ohlcv(symbol, "1m",
+                                   int((time.time() // 60 - 1) * 60000))  # fetching ohlcv data from binance
+        library = store['BINANCE-final']
         if len(data) > 0:
-            if not r.exists(str(int((time.time() // 60) * 60000)) + symbol + "-1m"):
+            if not r.exists(str(int((
+                                            time.time() // 60) * 60000)) + symbol + "-1m"):  # check so as to prevent duplicate data in same interval
                 try:
                     # print(data[0][0])
-                    r.set(str(int((time.time() // 60) * 60000)) + symbol + "-1m", str(json.dumps(data[0])))
-                    data[0][0] = pd.to_datetime(data[0][0] / 1000, unit='s').tz_localize("UTC")
+                    r.set(str(int((time.time() // 60) * 60000)) + symbol + "-1m",
+                          str(json.dumps(data[0])))  # updating redis cache with the fetched interval
+                    data[0][0] = pd.to_datetime(data[0][0] / 1000, unit='s').tz_localize(
+                        "UTC")  # converting epochs to timestamp utc
                     df = pd.DataFrame([data[0]], columns=['t', 'o', 'h', 'l', 'c', 'v'])
                     df.set_index('t')
-                    library.write(symbol + "-1m", df)
+                    library.write(symbol + "-1m", df)  # writing dataframe to the arctic db
                 except Exception as e:
                     print(e)
-            return data[0]
 
-        return []
+        return
 
     try:
-        r = redis.Redis(host='localhost', port=6379, db=0)
+        r = redis.Redis(host='localhost', port=6379, db=0)  # Redis connection setup
         binance = ccxt.binance()
         start = time.time()
-        symbols = json.loads(r.get("symbols"))
-        with concurrent.futures.ThreadPoolExecutor(max_workers=len(symbols)) as executor:
+        symbols = json.loads(r.get("symbols"))  # Loading active markets form redis
+        with concurrent.futures.ThreadPoolExecutor(
+                max_workers=len(symbols)) as executor:  # Executing fetch script in concurrent manner
             market_workers = {executor.submit(_fetch_result, symbol):
                                   symbol for symbol in symbols}
         end = time.time()
@@ -69,13 +74,17 @@ def process_1m_data():
 # low -3
 # close -4
 # volume-5
+
+# cron job to fetch the 5 minute result for all markets from the redis cache
+# and storing them in db
+# Job Triggers in every 5 minute
 @crontab.job(minute="*/5")
 @app.route('/get5m')
 def process_5m_data():
-    time.sleep(30)
+    time.sleep(35)  # Delay to provide mutual exclusiveness for 1m job
     start = time.time()
     r = redis.Redis(host='localhost', port=6379, db=0)
-    library = store['BINANCE_TEST']
+    library = store['BINANCE']
     symbols = json.loads(r.get("symbols"))
     for symbol in symbols:
         volume = 0.0
@@ -84,10 +93,10 @@ def process_5m_data():
         open = 0.0
         close = 0.0
         for i in range(0, 5):
-            time_epochs = int((time.time() // 60 - i) * 60000)
+            time_epochs = int((time.time() // 60 - i) * 60000)  # Fetching data for the last 5 minutes
             key = (str(time_epochs) + symbol + "-1m")
 
-            if r.exists(key):
+            if r.exists(key):  # Check to avoid duplicate elements
                 li = r.get(key)
                 row = json.loads(li)
                 volume = volume + row[5]
@@ -97,7 +106,7 @@ def process_5m_data():
                     open = row[1]
                 high = max(high, row[2])
                 low = min(low, row[3])
-                r.delete(key)
+                r.delete(key)  # freeing the cache space after use
         output_list = [int((time.time() // 60) * 60000), open, high, low, close, volume]
         if not r.exists(str(int((time.time() // 60) * 60000)) + symbol + "-5m"):
             r.set(str(int((time.time() // 60) * 60000)) + symbol + "-5m", str(json.dumps(output_list)))
@@ -111,12 +120,15 @@ def process_5m_data():
     return "5m Job executed successfully"
 
 
+# cron job to fetch the 15 minute result for all markets from the redis cache
+# and storing them in db
+# Job Triggers in every 15 minute
 @crontab.job(minute="*/15")
 @app.route('/get15m')
 def process_15m_data():
-    time.sleep(35)
+    time.sleep(40)  # Delay to provide mutual exclusiveness for 5m job
     r = redis.Redis(host='localhost', port=6379, db=0)
-    library = store['BINANCE_TEST']
+    library = store['BINANCE']
     symbols = json.loads(r.get("symbols"))
     for symbol in symbols:
         volume = 0.0
@@ -124,10 +136,10 @@ def process_15m_data():
         low = sys.maxsize
         open = 0.0
         close = 0.0
-        for i in range(0, 3):
+        for i in range(0, 3):   # Fetching data from cache for last 15 minutes from 5 minute interval
             time_epochs = int((time.time() // 60 - i * 5) * 60000)
             key = str(time_epochs) + symbol + "-5m"
-            if r.exists(key):
+            if r.exists(key):   # check to avoid duplicate elements
                 li = r.get(key)
                 row = json.loads(li)
                 volume = volume + row[5]
@@ -137,22 +149,25 @@ def process_15m_data():
                     open = row[1]
                 high = max(high, row[2])
                 low = min(low, row[3])
-                r.delete(key)
+                r.delete(key)   # Freeing cache after use
         output_list = [int(time.time()), open, high, low, close, volume]
         if not r.exists(str(int((time.time() // 60) * 60000)) + symbol + "-15m"):
             r.set(str(int((time.time() // 60) * 60000)) + symbol + "-15m", str(json.dumps(output_list)))
             output_list[0] = pd.to_datetime(output_list[0], unit='s').tz_localize("UTC")
-            df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])
+            df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])    #Dataframe to feed in the db
             df.set_index('t')
             library.write(symbol + '-15m', df)
 
     return "15m job executed successfully"
 
 
+# cron job to fetch the 30 minute result for all markets from the redis cache
+# and store them in db
+# Job Triggers in every 30 minute
 @crontab.job(minute="*/30")
 @app.route('/get30m')
 def process_30m_data():
-    time.sleep(40)
+    time.sleep(45)  # delay to provide space to 15m job
     r = redis.Redis(host='localhost', port=6379, db=0)
     library = store['BINANCE_TEST']
     symbols = json.loads(r.get("symbols"))
@@ -162,7 +177,7 @@ def process_30m_data():
         low = sys.maxsize
         open = 0.0
         close = 0.0
-        for i in range(0, 2):
+        for i in range(0, 2):   # Fetching Data for last 15 minute interval
             time_epochs = int((time.time() // 60 - i * 15) * 60000)
             key = str(time_epochs) + symbol + "-15m"
             if r.exists(key):
@@ -187,13 +202,16 @@ def process_30m_data():
     return "30m job executed successfully"
 
 
+# cron job to fetch the 60 minute result for all markets from the redis cache
+# and store them in db
+# Job Triggers in every 60 minute
 @crontab.job(minute="*/60")
 @app.route('/get60m')
 def process_60m_data():
-    time.sleep(40)
+    time.sleep(50)  # Delay to provide buffer space to 30 m job
     r = redis.Redis(host='localhost', port=6379, db=0)
     symbols = json.loads(r.get("symbols"))
-    library = store['BINANCE_TEST']
+    library = store['BINANCE']
     for symbol in symbols:
         volume = 0.0
         high = -sys.maxsize
@@ -225,51 +243,60 @@ def process_60m_data():
     return "60m job executed successfully"
 
 
+# cron job to check the quality of data fetched
+# mails daily report
+# Job Triggers in every 24 minute starting at 00:00
 @crontab.job(minute="0", hour="0")
 @app.route('/check_data_quality')
 def check_data_quality():
-    library = store['BINANCE_TEST_11']
+    library = store['BINANCE']
     r = redis.Redis(host='localhost', port=6379, db=0)
     symbols = json.loads(r.get("symbols"))
     dr = DateRange(datetime.datetime.utcfromtimestamp(time.time()) - datetime.timedelta(hours=1),
-                   datetime.datetime.utcfromtimestamp(time.time()))
+                   datetime.datetime.utcfromtimestamp(time.time())) # DateRange for last 24 hours in utc timestamp
     count = 0
-    with open("report.txt", 'w') as rep:
+    with open("report.txt", 'w') as rep:    # File that is attached in the mail
         for symbol in symbols:
             try:
+                # calculating missing data due to 1m job
                 rep.write("\n\nFor symbol " + symbol + "\n")
                 df = library.read(symbol + "-1m", date_range=dr).data
                 count = len(df.index)
                 if count < 1440:
                     rep.write(symbol + "missed 1m data percentage: " + str((1440 - count) * 100 / 1400) + "\n")
 
+                # calculating missing data due to 5m job
                 df = library.read(symbol + "-5m", date_range=dr).data
                 count = len(df.index)
                 if count < 288:
                     rep.write(symbol + "missed 5m data percentage: " + str((288 - count) * 100 / 288) + "\n")
 
+                # calculating missing data due to 15m job
                 df = library.read(symbol + "-15m", date_range=dr).data
                 count = len(df.index)
                 if count < 96:
                     rep.write(symbol + "missed 15m data percentage: " + str((96 - count) * 100 / 96) + "\n")
 
+                # calculating missing data due to 30m job
                 df = library.read(symbol + "-30m", date_range=dr).data
                 count = len(df.index)
                 if count < 48:
                     rep.write(symbol + "missed 30m data percentage: " + str((48 - count) * 100 / 48) + "\n")
 
+                # calculating missing data due to 60m job
                 df = library.read(symbol + "-60m", date_range=dr).data
                 count = len(df.index)
                 if count < 24:
                     rep.write(symbol + "missed 60m data percentage: " + str((24 - count) * 100 / 24) + "\n")
 
             except Exception as e:
+                print(e)
                 count += 1
     try:
         print(count)
 
         sender_address = 'saksham.jain2109@gmail.com'
-        sender_pass = 'Vmc1234$'
+        sender_pass = '****'
         receiver_address = 'jainsaksham36b@gmail.com'
         # Setup the MIME
         message = MIMEMultipart()
