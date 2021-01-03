@@ -21,7 +21,7 @@ from email import encoders
 app = Flask(__name__)
 crontab = Crontab(app)
 store = Arctic("localhost")  # connecting to local mongo server
-store.initialize_library("BINANCE-final")  # initializing library for the arctic
+store.initialize_library("BINANCE")  # initializing library for the arctic
 
 
 # cron job to fetch the 1 minute result for all markets
@@ -269,7 +269,7 @@ def check_data_quality():
                 df = library.read(symbol + "-1m", date_range=dr).data
                 count = len(df.index)
                 if count < 1440:
-                    rep.write(symbol + "missed 1m data percentage: " + str((1440 - count) * 100 / 1400) + "\n")
+                    rep.write(symbol + "missed 1m data percentage: " + str((1440 - count) * 100 / 1440) + "\n")
 
                 # calculating missing data due to 5m job
                 df = library.read(symbol + "-5m", date_range=dr).data
