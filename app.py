@@ -1,3 +1,5 @@
+# flask app to crawl on binance exchange and fetch kline data so as to store in local db
+
 from arctic.date import DateRange
 from flask import Flask
 import ccxt
@@ -35,12 +37,11 @@ def process_1m_data():
             if not r.exists(str(int((time.time() // 60) * 60000)) + symbol + "-1m"):
                 try:
                     # print(data[0][0])
+                    r.set(str(int((time.time() // 60) * 60000)) + symbol + "-1m", str(json.dumps(data[0])))
                     data[0][0] = pd.to_datetime(data[0][0] / 1000, unit='s').tz_localize("UTC")
                     df = pd.DataFrame([data[0]], columns=['t', 'o', 'h', 'l', 'c', 'v'])
                     df.set_index('t')
-                    r.set(str(int((time.time() // 60) * 60000)) + symbol + "-1m", str(json.dumps(data[0])))
                     library.write(symbol + "-1m", df)
-                    print(symbol)
                 except Exception as e:
                     print(e)
             return data[0]
