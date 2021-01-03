@@ -34,7 +34,8 @@ def process_1m_data():
     def _fetch_result(symbol):
         data = binance.fetch_ohlcv(symbol, "1m",
                                    int((time.time() // 60 - 1) * 60000))  # fetching ohlcv data from binance
-        library = store['BINANCE-final']
+        store = Arctic("localhost")  # connecting to local mongo server
+        library = store['BINANCE']
         if len(data) > 0:
             if not r.exists(str(int((
                                             time.time() // 60) * 60000)) + symbol + "-1m"):  # check so as to prevent duplicate data in same interval
@@ -84,6 +85,7 @@ def process_5m_data():
     time.sleep(35)  # Delay to provide mutual exclusiveness for 1m job
     start = time.time()
     r = redis.Redis(host='localhost', port=6379, db=0)
+    store = Arctic("localhost")  # connecting to local mongo server
     library = store['BINANCE']
     symbols = json.loads(r.get("symbols"))
     for symbol in symbols:
@@ -128,6 +130,7 @@ def process_5m_data():
 def process_15m_data():
     time.sleep(40)  # Delay to provide mutual exclusiveness for 5m job
     r = redis.Redis(host='localhost', port=6379, db=0)
+    store = Arctic("localhost")  # connecting to local mongo server
     library = store['BINANCE']
     symbols = json.loads(r.get("symbols"))
     for symbol in symbols:
@@ -169,7 +172,8 @@ def process_15m_data():
 def process_30m_data():
     time.sleep(45)  # delay to provide space to 15m job
     r = redis.Redis(host='localhost', port=6379, db=0)
-    library = store['BINANCE_TEST']
+    store = Arctic("localhost")  # connecting to local mongo server
+    library = store['BINANCE']
     symbols = json.loads(r.get("symbols"))
     for symbol in symbols:
         volume = 0.0
@@ -211,6 +215,7 @@ def process_60m_data():
     time.sleep(50)  # Delay to provide buffer space to 30 m job
     r = redis.Redis(host='localhost', port=6379, db=0)
     symbols = json.loads(r.get("symbols"))
+    store = Arctic("localhost")  # connecting to local mongo server
     library = store['BINANCE']
     for symbol in symbols:
         volume = 0.0
@@ -249,6 +254,7 @@ def process_60m_data():
 @crontab.job(minute="0", hour="0")
 @app.route('/check_data_quality')
 def check_data_quality():
+    store = Arctic("localhost")  # connecting to local mongo server
     library = store['BINANCE']
     r = redis.Redis(host='localhost', port=6379, db=0)
     symbols = json.loads(r.get("symbols"))
@@ -296,7 +302,7 @@ def check_data_quality():
         print(count)
 
         sender_address = 'saksham.jain2109@gmail.com'
-        sender_pass = '****'
+        sender_pass = 'Vmc1234$'
         receiver_address = 'jainsaksham36b@gmail.com'
         # Setup the MIME
         message = MIMEMultipart()
