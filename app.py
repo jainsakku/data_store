@@ -39,9 +39,9 @@ def process_1m_data():
         if len(data) > 0:
             if not r.exists(str(int((start // 60) * 60000)) + symbol + "-1m"):  # check so as to prevent duplicate data in same interval
                 try:
-                    # print(data[0][0])
+
                     r.set(str(int((start // 60) * 60000)) + symbol + "-1m",
-                          str(json.dumps(data[0])))  # updating redis cache with the fetched interval
+                          str(json.dumps(data[0])), ex=10*60)  # updating redis cache with the fetched interval
                     data[0][0] = pd.to_datetime(data[0][0] / 1000, unit='s').tz_localize(
                         "UTC")  # converting epochs to timestamp utc
                     df = pd.DataFrame([data[0]], columns=['t', 'o', 'h', 'l', 'c', 'v'])
@@ -110,7 +110,7 @@ def process_5m_data():
                 r.delete(key)  # freeing the cache space after use
         output_list = [int((time.time() // 60) * 60000), open, high, low, close, volume]
         if not r.exists(str(int((start // 60) * 60000)) + symbol + "-5m"):
-            r.set(str(int((start // 60) * 60000)) + symbol + "-5m", str(json.dumps(output_list)))
+            r.set(str(int((start // 60) * 60000)) + symbol + "-5m", str(json.dumps(output_list)), ex=20*60)
             output_list[0] = pd.to_datetime(output_list[0] / 1000, unit='s').tz_localize("UTC")
             df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])
             df.set_index('t')
@@ -155,7 +155,7 @@ def process_15m_data():
                 r.delete(key)  # Freeing cache after use
         output_list = [int(time.time()), open, high, low, close, volume]
         if not r.exists(str(int((start // 60) * 60000)) + symbol + "-15m"):
-            r.set(str(int((start // 60) * 60000)) + symbol + "-15m", str(json.dumps(output_list)))
+            r.set(str(int((start // 60) * 60000)) + symbol + "-15m", str(json.dumps(output_list)), ex=40*60)
             output_list[0] = pd.to_datetime(output_list[0], unit='s').tz_localize("UTC")
             df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])  # Dataframe to feed in the db
             df.set_index('t')
@@ -198,7 +198,7 @@ def process_30m_data():
                 r.delete(key)
         output_list = [(int(time.time() // 60) * 60000), open, high, low, close, volume]
         if not r.exists(str(int((start // 60) * 60000)) + symbol + "-30m"):
-            r.set(str(int((start // 60) * 60000)) + symbol + "-30m", str(json.dumps(output_list)))
+            r.set(str(int((start // 60) * 60000)) + symbol + "-30m", str(json.dumps(output_list)), ex=70*60)
             output_list[0] = pd.to_datetime(output_list[0] / 1000, unit='s').tz_localize("UTC")
             df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])
             df.set_index('t')
@@ -241,7 +241,7 @@ def process_60m_data():
                 r.delete(key)
         output_list = [(int(time.time() // 60) * 60000), open, high, low, close, volume]
         if not r.exists(str(int((start // 60) * 60000)) + symbol + "-60m"):
-            r.set(str(int((start // 60) * 60000)) + symbol + "-60m", str(json.dumps(output_list)))
+            r.set(str(int((start // 60) * 60000)) + symbol + "-60m", str(json.dumps(output_list)), ex=100*60)
             output_list[0] = pd.to_datetime(output_list[0] / 1000, unit='s').tz_localize("UTC")
             df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])
             df.set_index('t')
