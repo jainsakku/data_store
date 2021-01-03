@@ -37,11 +37,10 @@ def process_1m_data():
         store = Arctic("localhost")  # connecting to local mongo server
         library = store['BINANCE']
         if len(data) > 0:
-            if not r.exists(str(int((
-                                            time.time() // 60) * 60000)) + symbol + "-1m"):  # check so as to prevent duplicate data in same interval
+            if not r.exists(str(int((start // 60) * 60000)) + symbol + "-1m"):  # check so as to prevent duplicate data in same interval
                 try:
                     # print(data[0][0])
-                    r.set(str(int((time.time() // 60) * 60000)) + symbol + "-1m",
+                    r.set(str(int((start // 60) * 60000)) + symbol + "-1m",
                           str(json.dumps(data[0])))  # updating redis cache with the fetched interval
                     data[0][0] = pd.to_datetime(data[0][0] / 1000, unit='s').tz_localize(
                         "UTC")  # converting epochs to timestamp utc
@@ -110,8 +109,8 @@ def process_5m_data():
                 low = min(low, row[3])
                 r.delete(key)  # freeing the cache space after use
         output_list = [int((time.time() // 60) * 60000), open, high, low, close, volume]
-        if not r.exists(str(int((time.time() // 60) * 60000)) + symbol + "-5m"):
-            r.set(str(int((time.time() // 60) * 60000)) + symbol + "-5m", str(json.dumps(output_list)))
+        if not r.exists(str(int((start // 60) * 60000)) + symbol + "-5m"):
+            r.set(str(int((start // 60) * 60000)) + symbol + "-5m", str(json.dumps(output_list)))
             output_list[0] = pd.to_datetime(output_list[0] / 1000, unit='s').tz_localize("UTC")
             df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])
             df.set_index('t')
@@ -129,6 +128,7 @@ def process_5m_data():
 @app.route('/get15m')
 def process_15m_data():
     time.sleep(40)  # Delay to provide mutual exclusiveness for 5m job
+    start = time.time()
     r = redis.Redis(host='localhost', port=6379, db=0)
     store = Arctic("localhost")  # connecting to local mongo server
     library = store['BINANCE']
@@ -139,10 +139,10 @@ def process_15m_data():
         low = sys.maxsize
         open = 0.0
         close = 0.0
-        for i in range(0, 3):   # Fetching data from cache for last 15 minutes from 5 minute interval
+        for i in range(0, 3):  # Fetching data from cache for last 15 minutes from 5 minute interval
             time_epochs = int((time.time() // 60 - i * 5) * 60000)
             key = str(time_epochs) + symbol + "-5m"
-            if r.exists(key):   # check to avoid duplicate elements
+            if r.exists(key):  # check to avoid duplicate elements
                 li = r.get(key)
                 row = json.loads(li)
                 volume = volume + row[5]
@@ -152,12 +152,12 @@ def process_15m_data():
                     open = row[1]
                 high = max(high, row[2])
                 low = min(low, row[3])
-                r.delete(key)   # Freeing cache after use
+                r.delete(key)  # Freeing cache after use
         output_list = [int(time.time()), open, high, low, close, volume]
-        if not r.exists(str(int((time.time() // 60) * 60000)) + symbol + "-15m"):
-            r.set(str(int((time.time() // 60) * 60000)) + symbol + "-15m", str(json.dumps(output_list)))
+        if not r.exists(str(int((start // 60) * 60000)) + symbol + "-15m"):
+            r.set(str(int((start // 60) * 60000)) + symbol + "-15m", str(json.dumps(output_list)))
             output_list[0] = pd.to_datetime(output_list[0], unit='s').tz_localize("UTC")
-            df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])    #Dataframe to feed in the db
+            df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])  # Dataframe to feed in the db
             df.set_index('t')
             library.write(symbol + '-15m', df)
 
@@ -171,6 +171,7 @@ def process_15m_data():
 @app.route('/get30m')
 def process_30m_data():
     time.sleep(45)  # delay to provide space to 15m job
+    start = time.time()
     r = redis.Redis(host='localhost', port=6379, db=0)
     store = Arctic("localhost")  # connecting to local mongo server
     library = store['BINANCE']
@@ -181,7 +182,7 @@ def process_30m_data():
         low = sys.maxsize
         open = 0.0
         close = 0.0
-        for i in range(0, 2):   # Fetching Data for last 15 minute interval
+        for i in range(0, 2):  # Fetching Data for last 15 minute interval
             time_epochs = int((time.time() // 60 - i * 15) * 60000)
             key = str(time_epochs) + symbol + "-15m"
             if r.exists(key):
@@ -196,8 +197,8 @@ def process_30m_data():
                 low = min(low, row[3])
                 r.delete(key)
         output_list = [(int(time.time() // 60) * 60000), open, high, low, close, volume]
-        if not r.exists(str(int((time.time() // 60) * 60000)) + symbol + "-30m"):
-            r.set(str(int((time.time() // 60) * 60000)) + symbol + "-30m", str(json.dumps(output_list)))
+        if not r.exists(str(int((start // 60) * 60000)) + symbol + "-30m"):
+            r.set(str(int((start // 60) * 60000)) + symbol + "-30m", str(json.dumps(output_list)))
             output_list[0] = pd.to_datetime(output_list[0] / 1000, unit='s').tz_localize("UTC")
             df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])
             df.set_index('t')
@@ -213,6 +214,7 @@ def process_30m_data():
 @app.route('/get60m')
 def process_60m_data():
     time.sleep(50)  # Delay to provide buffer space to 30 m job
+    start = time.time()
     r = redis.Redis(host='localhost', port=6379, db=0)
     symbols = json.loads(r.get("symbols"))
     store = Arctic("localhost")  # connecting to local mongo server
@@ -238,8 +240,8 @@ def process_60m_data():
                 low = min(low, row[3])
                 r.delete(key)
         output_list = [(int(time.time() // 60) * 60000), open, high, low, close, volume]
-        if not r.exists(str(int((time.time() // 60) * 60000)) + symbol + "-60m"):
-            r.set(str(int((time.time() // 60) * 60000)) + symbol + "-60m", str(json.dumps(output_list)))
+        if not r.exists(str(int((start // 60) * 60000)) + symbol + "-60m"):
+            r.set(str(int((start // 60) * 60000)) + symbol + "-60m", str(json.dumps(output_list)))
             output_list[0] = pd.to_datetime(output_list[0] / 1000, unit='s').tz_localize("UTC")
             df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])
             df.set_index('t')
@@ -259,9 +261,9 @@ def check_data_quality():
     r = redis.Redis(host='localhost', port=6379, db=0)
     symbols = json.loads(r.get("symbols"))
     dr = DateRange(datetime.datetime.utcfromtimestamp(time.time()) - datetime.timedelta(hours=1),
-                   datetime.datetime.utcfromtimestamp(time.time())) # DateRange for last 24 hours in utc timestamp
+                   datetime.datetime.utcfromtimestamp(time.time()))  # DateRange for last 24 hours in utc timestamp
     count = 0
-    with open("report.txt", 'w') as rep:    # File that is attached in the mail
+    with open("report.txt", 'w') as rep:  # File that is attached in the mail
         for symbol in symbols:
             try:
                 # calculating missing data due to 1m job
