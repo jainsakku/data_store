@@ -60,6 +60,11 @@ def process_1m_data():
                         "GMT")  # converting epochs to timestamp utc
                     df = pd.DataFrame([data[0]], columns=['t', 'o', 'h', 'l', 'c', 'v'])
                     df.set_index('t', inplace=True)
+                    df['o'] = pd.to_numeric(df['o'])
+                    df['h'] = pd.to_numeric(df['h'])
+                    df['l'] = pd.to_numeric(df['l'])
+                    df['c'] = pd.to_numeric(df['c'])
+                    df['v'] = pd.to_numeric(df['v'])
                     library.append(symbol + "-1m", df, upsert=True)  # writing dataframe to the arctic db
                     ret.append(time.time() - t1)
                     t1 = time.time()
