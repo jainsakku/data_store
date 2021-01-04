@@ -22,8 +22,11 @@ from pymongo import MongoClient
 app = Flask(__name__)
 crontab = Crontab(app)
 m = MongoClient("localhost")
-store = Arctic(m)  # connecting to local mongo server
-store.initialize_library("BINANCE_EXCHANGE")  # initializing library for the arctic
+app.store = Arctic(m,
+                   serverSelectionTimeoutMS=2500,
+                   socketTimeoutMS=2500,
+                   connectTimeoutMS=2500)  # connecting to local mongo server
+app.store.initialize_library("BINANCE_EXCHANGE")  # initializing library for the arctic
 
 
 # cron job to fetch the 1 minute result for all markets
@@ -31,21 +34,24 @@ store.initialize_library("BINANCE_EXCHANGE")  # initializing library for the arc
 @crontab.job()
 @app.route('/get1m')
 def process_1m_data():
+    from flask import current_app as app
     count = 0
 
     def _fetch_result(symbol):
         data = binance.fetch_ohlcv(symbol, "1m",
                                    int((time.time() // 60 - 1) * 60000))  # fetching ohlcv data from binance
-        m = MongoClient("localhost")
-        store = Arctic(m)  # connecting to local mongo server
-        library = store['BINANCE_EXCHANGE']
+        # m = MongoClient("localhost")
+        # store = Arctic(m)  # connecting to local mongo server
+        library = app.store['BINANCE_EXCHANGE']
         if len(data) > 0:
-            if not r.exists(str(int((start // 60) * 60000)) + symbol + "-1m"):  # check so as to prevent duplicate data in same interval
+            if not r.exists(str(int(
+                    (start // 60) * 60000)) + symbol + "-1m"):  # check so as to prevent duplicate data in same interval
                 try:
 
                     r.set(str(int((start // 60) * 60000)) + symbol + "-1m",
-                          str(json.dumps(data[0])), ex=10*60)  # updating redis cache with the fetched interval
-                    data[0][0] = pd.to_datetime(data[0][0] / 1000, unit='s').tz_localize("GMT")  # converting epochs to timestamp utc
+                          str(json.dumps(data[0])), ex=10 * 60)  # updating redis cache with the fetched interval
+                    data[0][0] = pd.to_datetime(data[0][0] / 1000, unit='s').tz_localize(
+                        "GMT")  # converting epochs to timestamp utc
                     df = pd.DataFrame([data[0]], columns=['t', 'o', 'h', 'l', 'c', 'v'])
                     df.set_index('t', inplace=True)
                     library.append(symbol + "-1m", df, upsert=True)  # writing dataframe to the arctic db
@@ -84,12 +90,11 @@ def process_1m_data():
 @crontab.job(minute="*/5")
 @app.route('/get5m')
 def process_5m_data():
+    from flask import current_app as app
     time.sleep(10)  # Delay to provide mutual exclusiveness for 1m job
     start = time.time()
     r = redis.Redis(host='localhost', port=6379, db=0)
-    m = MongoClient("localhost")
-    store = Arctic(m)  # connecting to local mongo server
-    library = store['BINANCE_EXCHANGE']
+    library = app.store['BINANCE_EXCHANGE']
     symbols = json.loads(r.get("symbols"))
     for symbol in symbols:
         volume = 0.0
@@ -114,7 +119,7 @@ def process_5m_data():
                 r.delete(key)  # freeing the cache space after use
         output_list = [int((time.time() // 60) * 60000), open, high, low, close, volume]
         if not r.exists(str(int((start // 60) * 60000)) + symbol + "-5m"):
-            r.set(str(int((start // 60) * 60000)) + symbol + "-5m", str(json.dumps(output_list)), ex=20*60)
+            r.set(str(int((start // 60) * 60000)) + symbol + "-5m", str(json.dumps(output_list)), ex=20 * 60)
             output_list[0] = pd.to_datetime(output_list[0] / 1000, unit='s').tz_localize("GMT")
             df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])
             df.set_index('t', inplace=True)
@@ -132,12 +137,11 @@ def process_5m_data():
 @crontab.job(minute="*/15")
 @app.route('/get15m')
 def process_15m_data():
+    from flask import current_app as app
     time.sleep(25)  # Delay to provide mutual exclusiveness for 5m job
     start = time.time()
     r = redis.Redis(host='localhost', port=6379, db=0)
-    m = MongoClient("localhost")
-    store = Arctic(m)  # connecting to local mongo server
-    library = store['BINANCE_EXCHANGE']
+    library = app.store['BINANCE_EXCHANGE']
     symbols = json.loads(r.get("symbols"))
     for symbol in symbols:
         volume = 0.0
@@ -161,7 +165,7 @@ def process_15m_data():
                 r.delete(key)  # Freeing cache after use
         output_list = [int(time.time()), open, high, low, close, volume]
         if not r.exists(str(int((start // 60) * 60000)) + symbol + "-15m"):
-            r.set(str(int((start // 60) * 60000)) + symbol + "-15m", str(json.dumps(output_list)), ex=40*60)
+            r.set(str(int((start // 60) * 60000)) + symbol + "-15m", str(json.dumps(output_list)), ex=40 * 60)
             output_list[0] = pd.to_datetime(output_list[0], unit='s').tz_localize("GMT")
             df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])  # Dataframe to feed in the db
             df.set_index('t', inplace=True)
@@ -180,9 +184,7 @@ def process_30m_data():
     time.sleep(35)  # delay to provide space to 15m job
     start = time.time()
     r = redis.Redis(host='localhost', port=6379, db=0)
-    m = MongoClient("localhost")
-    store = Arctic(m)  # connecting to local mongo server
-    library = store['BINANCE_EXCHANGE']
+    library = app.store['BINANCE_EXCHANGE']
     symbols = json.loads(r.get("symbols"))
     for symbol in symbols:
         volume = 0.0
@@ -206,7 +208,7 @@ def process_30m_data():
                 r.delete(key)
         output_list = [(int(time.time() // 60) * 60000), open, high, low, close, volume]
         if not r.exists(str(int((start // 60) * 60000)) + symbol + "-30m"):
-            r.set(str(int((start // 60) * 60000)) + symbol + "-30m", str(json.dumps(output_list)), ex=70*60)
+            r.set(str(int((start // 60) * 60000)) + symbol + "-30m", str(json.dumps(output_list)), ex=70 * 60)
             output_list[0] = pd.to_datetime(output_list[0] / 1000, unit='s').tz_localize("GMT")
             df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])
             df.set_index('t', inplace=True)
@@ -226,9 +228,7 @@ def process_60m_data():
     start = time.time()
     r = redis.Redis(host='localhost', port=6379, db=0)
     symbols = json.loads(r.get("symbols"))
-    m = MongoClient("localhost")
-    store = Arctic(m)  # connecting to local mongo server
-    library = store['BINANCE_EXCHANGE']
+    library = app.store['BINANCE_EXCHANGE']
     for symbol in symbols:
         volume = 0.0
         high = -sys.maxsize
@@ -251,7 +251,7 @@ def process_60m_data():
                 r.delete(key)
         output_list = [(int(time.time() // 60) * 60000), open, high, low, close, volume]
         if not r.exists(str(int((start // 60) * 60000)) + symbol + "-60m"):
-            r.set(str(int((start // 60) * 60000)) + symbol + "-60m", str(json.dumps(output_list)), ex=100*60)
+            r.set(str(int((start // 60) * 60000)) + symbol + "-60m", str(json.dumps(output_list)), ex=100 * 60)
             output_list[0] = pd.to_datetime(output_list[0] / 1000, unit='s').tz_localize("GMT")
             df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])
             df.set_index('t', inplace=True)
@@ -267,12 +267,11 @@ def process_60m_data():
 @crontab.job(minute="0", hour="0")
 @app.route('/check_data_quality')
 def check_data_quality():
-    m = MongoClient("localhost")
-    store = Arctic(m)  # connecting to local mongo server
-    library = store['BINANCE_EXCHANGE']
+    from flask import current_app as app
+    library = app.store['BINANCE_EXCHANGE']
     r = redis.Redis(host='localhost', port=6379, db=0)
     symbols = json.loads(r.get("symbols"))
-    #dr = DateRange(datetime.datetime.utcfromtimestamp(time.time()) - datetime.timedelta(hours=24),
+    # dr = DateRange(datetime.datetime.utcfromtimestamp(time.time()) - datetime.timedelta(hours=24),
     #               datetime.datetime.utcfromtimestamp(time.time()))  # DateRange for last 24 hours in utc timestamp
     dr = DateRange(datetime.datetime.utcfromtimestamp(1609718400),
                    datetime.datetime.utcfromtimestamp(1609754400))
