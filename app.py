@@ -22,13 +22,14 @@ from pymongo import MongoClient
 app = Flask(__name__)
 crontab = Crontab(app)
 
-client = MongoClient("mongodb+srv://root:root@cluster0.medqk.mongodb.net/arctic?retryWrites=true&w=majority")
+client = MongoClient("localhost")
+app.db = client['Arctic_data']
 
-app.store = Arctic(client,
-                   serverSelectionTimeoutMS=2500,
-                   socketTimeoutMS=2500,
-                   connectTimeoutMS=2500)  # connecting to local mongo server
-app.store.initialize_library("BINANCE_EXCHANGE")  # initializing library for the arctic
+# app.store = Arctic(client,
+#                    serverSelectionTimeoutMS=2500,
+#                    socketTimeoutMS=2500,
+#                    connectTimeoutMS=2500)  # connecting to local mongo server
+# app.store.initialize_library("BINANCE_EXCHANGE")  # initializing library for the arctic
 
 
 # cron job to fetch the 1 minute result for all markets
@@ -48,7 +49,7 @@ def process_1m_data():
         t1 = time.time()
         # m = MongoClient("localhost")
         # store = Arctic(m)  # connecting to local mongo server
-        library = store['BINANCE_EXCHANGE']
+        # library = store['BINANCE_EXCHANGE']
         ret.append(time.time() - t1)
         t1 = time.time()
         if len(data) > 0:
@@ -70,7 +71,9 @@ def process_1m_data():
                     df.index = df.index.round("S")
                     ret.append(time.time() - t1)
                     t1 = time.time()
-                    library.append(symbol + "-1m", df, upsert=True)  # writing dataframe to the arctic db
+                    # library.append(symbol + "-1m", df, upsert=True)  # writing dataframe to the arctic db
+                    mycol = store[symbol]
+                    mycol.insert_one(df)
                     ret.append(time.time() - t1)
                     t1 = time.time()
                 except Exception as e:
@@ -86,7 +89,7 @@ def process_1m_data():
         symbols = json.loads(r.get("symbols"))  # Loading active markets form redis
         with concurrent.futures.ThreadPoolExecutor(
                 max_workers=len(symbols)) as executor:  # Executing fetch script in concurrent manner
-            market_workers = {executor.submit(_fetch_result, symbol, app.store):
+            market_workers = {executor.submit(_fetch_result, symbol, app.db):
                                   symbol for symbol in symbols}
             for worker in concurrent.futures.as_completed(market_workers):
                 market = market_workers[worker]
