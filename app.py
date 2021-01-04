@@ -38,26 +38,36 @@ def process_1m_data():
     count = 0
 
     def _fetch_result(symbol, store):
+        t1 = time.time()
+        ret = []
         data = binance.fetch_ohlcv(symbol, "1m",
                                    int((time.time() // 60 - 1) * 60000))  # fetching ohlcv data from binance
+        ret.append(time.time()-t1)
+        t1 = time.time()
         # m = MongoClient("localhost")
         # store = Arctic(m)  # connecting to local mongo server
         library = store['BINANCE_EXCHANGE']
+        ret.append(time.time() - t1)
+        t1 = time.time()
         if len(data) > 0:
             if not r.exists(str(int(start)) + symbol + "-1m"):  # check so as to prevent duplicate data in same interval
                 try:
                     r.set(str(int(start)) + symbol + "-1m",
                           str(json.dumps(data[0])), ex=10 * 60)  # updating redis cache with the fetched interval
+                    ret.append(time.time() - t1)
+                    t1 = time.time()
                     data[0][0] = pd.to_datetime(data[0][0] / 1000, unit='s').tz_localize(
                         "GMT")  # converting epochs to timestamp utc
                     df = pd.DataFrame([data[0]], columns=['t', 'o', 'h', 'l', 'c', 'v'])
                     df.set_index('t', inplace=True)
                     library.append(symbol + "-1m", df, upsert=True)  # writing dataframe to the arctic db
+                    ret.append(time.time() - t1)
+                    t1 = time.time()
                 except Exception as e:
                     print(e)
 
         # m.close()
-        return
+        return ret
 
     try:
         r = redis.Redis(host='localhost', port=6379, db=0)  # Redis connection setup
@@ -68,6 +78,14 @@ def process_1m_data():
                 max_workers=len(symbols)) as executor:  # Executing fetch script in concurrent manner
             market_workers = {executor.submit(_fetch_result, symbol, app.store):
                                   symbol for symbol in symbols}
+            for worker in concurrent.futures.as_completed(market_workers):
+                market = market_workers[worker]
+                # print(market)
+                try:
+                    raw_data = worker.result()
+                    print(raw_data)
+                except Exception as e:
+                    print(e)
         end = time.time()
         print(f'{end - start:.2f}')
         print("Success")
