@@ -53,9 +53,9 @@ def process_1m_data():
         ret.append(time.time() - t1)
         t1 = time.time()
         if len(data) > 0:
-            if not r.exists(str(int(start)) + symbol + "-1m"):  # check so as to prevent duplicate data in same interval
+            if not r.exists(str((int(start)//60)*60) + symbol + "-1m"):  # check so as to prevent duplicate data in same interval
                 try:
-                    r.set(str(int(start)) + symbol + "-1m",
+                    r.set(str((int(start)//60)*60) + symbol + "-1m",
                           str(json.dumps(data[0])), ex=10 * 60)  # updating redis cache with the fetched interval
                     ret.append(time.time() - t1)
                     t1 = time.time()
@@ -101,7 +101,7 @@ def process_1m_data():
 # cron job to fetch the 5 minute result for all markets from the redis cache
 # and storing them in db
 # Job Triggers in every 5 minute
-@crontab.job(minute="*/6")
+@crontab.job(minute="*/5")
 @app.route('/get5m')
 def process_5m_data():
     from flask import current_app as app
@@ -153,7 +153,7 @@ def process_5m_data():
 # cron job to fetch the 15 minute result for all markets from the redis cache
 # and storing them in db
 # Job Triggers in every 15 minute
-@crontab.job(minute="*/17")
+@crontab.job(minute="*/15")
 @app.route('/get15m')
 def process_15m_data():
     from flask import current_app as app
@@ -198,7 +198,7 @@ def process_15m_data():
 # cron job to fetch the 30 minute result for all markets from the redis cache
 # and store them in db
 # Job Triggers in every 30 minute
-@crontab.job(minute="*/33")
+@crontab.job(minute="*/30")
 @app.route('/get30m')
 def process_30m_data():
     start = time.time()
