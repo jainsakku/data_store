@@ -37,30 +37,26 @@ def process_1m_data():
     from flask import current_app as app
     count = 0
 
-    def _fetch_result(symbol):
+    def _fetch_result(symbol, store):
         data = binance.fetch_ohlcv(symbol, "1m",
                                    int((time.time() // 60 - 1) * 60000))  # fetching ohlcv data from binance
         # m = MongoClient("localhost")
         # store = Arctic(m)  # connecting to local mongo server
-        library = app.store['BINANCE_EXCHANGE']
-        app.logger.debug("Library ini")
+        library = store['BINANCE_EXCHANGE']
         if len(data) > 0:
-            if not r.exists(str(int(
-                    (start // 60) * 60000)) + symbol + "-1m"):  # check so as to prevent duplicate data in same interval
+            if not r.exists(str(int(start)) + symbol + "-1m"):  # check so as to prevent duplicate data in same interval
                 try:
-                    app.logger.debug("In try")
-                    r.set(str(int((start // 60) * 60000)) + symbol + "-1m",
+                    r.set(str(int(start)) + symbol + "-1m",
                           str(json.dumps(data[0])), ex=10 * 60)  # updating redis cache with the fetched interval
                     data[0][0] = pd.to_datetime(data[0][0] / 1000, unit='s').tz_localize(
                         "GMT")  # converting epochs to timestamp utc
                     df = pd.DataFrame([data[0]], columns=['t', 'o', 'h', 'l', 'c', 'v'])
                     df.set_index('t', inplace=True)
                     library.append(symbol + "-1m", df, upsert=True)  # writing dataframe to the arctic db
-                    app.logger.debug("after append")
                 except Exception as e:
                     print(e)
 
-        m.close()
+        # m.close()
         return
 
     try:
@@ -70,7 +66,7 @@ def process_1m_data():
         symbols = json.loads(r.get("symbols"))  # Loading active markets form redis
         with concurrent.futures.ThreadPoolExecutor(
                 max_workers=len(symbols)) as executor:  # Executing fetch script in concurrent manner
-            market_workers = {executor.submit(_fetch_result, symbol):
+            market_workers = {executor.submit(_fetch_result, symbol, app.store):
                                   symbol for symbol in symbols}
         end = time.time()
         print(f'{end - start:.2f}')
@@ -89,23 +85,27 @@ def process_1m_data():
 # cron job to fetch the 5 minute result for all markets from the redis cache
 # and storing them in db
 # Job Triggers in every 5 minute
-@crontab.job(minute="*/5")
+@crontab.job(minute="*/6")
 @app.route('/get5m')
 def process_5m_data():
     from flask import current_app as app
-    time.sleep(10)  # Delay to provide mutual exclusiveness for 1m job
     start = time.time()
     r = redis.Redis(host='localhost', port=6379, db=0)
     library = app.store['BINANCE_EXCHANGE']
     symbols = json.loads(r.get("symbols"))
+    start_5_min =(start // 60) // 5
+    start_5_min = int(start_5_min - 1)
+
     for symbol in symbols:
         volume = 0.0
         high = -sys.maxsize
         low = sys.maxsize
         open = 0.0
         close = 0.0
-        for i in reversed(range(1, 6)):
-            time_epochs = int((time.time() // 60 - i) * 60000)  # Fetching data for the last 5 minutes
+        print(symbol)
+        for i in range(start_5_min * 5, (start_5_min*5) + 5):
+            print(datetime.datetime.utcfromtimestamp(i*60))
+            time_epochs = int(i * 60)  # Fetching data for the last 5 minutes
             key = (str(time_epochs) + symbol + "-1m")
 
             if r.exists(key):  # Check to avoid duplicate elements
@@ -120,8 +120,8 @@ def process_5m_data():
                 low = min(low, row[3])
                 r.delete(key)  # freeing the cache space after use
         output_list = [int((time.time() // 60) * 60000), open, high, low, close, volume]
-        if not r.exists(str(int((start // 60) * 60000)) + symbol + "-5m"):
-            r.set(str(int((start // 60) * 60000)) + symbol + "-5m", str(json.dumps(output_list)), ex=20 * 60)
+        if not r.exists(str(start_5_min*5*60) + symbol + "-5m"):
+            r.set(str(start_5_min * 5 * 60) + symbol + "-5m", str(json.dumps(output_list)), ex=20 * 60)
             output_list[0] = pd.to_datetime(output_list[0] / 1000, unit='s').tz_localize("GMT")
             df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])
             df.set_index('t', inplace=True)
@@ -129,30 +129,32 @@ def process_5m_data():
 
     end = time.time()
     print(f'{end - start:.2f}')
-    m.close()
     return "5m Job executed successfully"
 
 
 # cron job to fetch the 15 minute result for all markets from the redis cache
 # and storing them in db
 # Job Triggers in every 15 minute
-@crontab.job(minute="*/15")
+@crontab.job(minute="*/17")
 @app.route('/get15m')
 def process_15m_data():
     from flask import current_app as app
-    time.sleep(25)  # Delay to provide mutual exclusiveness for 5m job
     start = time.time()
     r = redis.Redis(host='localhost', port=6379, db=0)
     library = app.store['BINANCE_EXCHANGE']
     symbols = json.loads(r.get("symbols"))
+    start_15_min = (start // 60) // 15
+    start_15_min = int(start_15_min - 1)
     for symbol in symbols:
+        print
         volume = 0.0
         high = -sys.maxsize
         low = sys.maxsize
         open = 0.0
         close = 0.0
-        for i in reversed(range(0, 3)):  # Fetching data from cache for last 15 minutes from 5 minute interval
-            time_epochs = int((time.time() // 60 - i * 5) * 60000)
+        for i in range(start_15_min * 3, (start_15_min*3) + 3):  # Fetching data from cache for last 15 minutes from 5 minute interval
+            time_epochs = int(i*5*60)
+            print(datetime.datetime.utcfromtimestamp(time_epochs))
             key = str(time_epochs) + symbol + "-5m"
             if r.exists(key):  # check to avoid duplicate elements
                 li = r.get(key)
@@ -166,36 +168,37 @@ def process_15m_data():
                 low = min(low, row[3])
                 r.delete(key)  # Freeing cache after use
         output_list = [int(time.time()), open, high, low, close, volume]
-        if not r.exists(str(int((start // 60) * 60000)) + symbol + "-15m"):
-            r.set(str(int((start // 60) * 60000)) + symbol + "-15m", str(json.dumps(output_list)), ex=40 * 60)
+        if not r.exists(str(start_15_min*15*60) + symbol + "-15m"):
+            r.set(str(start_15_min*15*60) + symbol + "-15m", str(json.dumps(output_list)), ex=40 * 60)
             output_list[0] = pd.to_datetime(output_list[0], unit='s').tz_localize("GMT")
             df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])  # Dataframe to feed in the db
             df.set_index('t', inplace=True)
             library.append(symbol + '-15m', df, upsert=True)
 
-    m.close()
     return "15m job executed successfully"
 
 
 # cron job to fetch the 30 minute result for all markets from the redis cache
 # and store them in db
 # Job Triggers in every 30 minute
-@crontab.job(minute="*/30")
+@crontab.job(minute="*/33")
 @app.route('/get30m')
 def process_30m_data():
-    time.sleep(35)  # delay to provide space to 15m job
     start = time.time()
     r = redis.Redis(host='localhost', port=6379, db=0)
     library = app.store['BINANCE_EXCHANGE']
     symbols = json.loads(r.get("symbols"))
+    start_30_min = (start // 60) // 30
+    start_30_min = int(start_30_min - 1)
     for symbol in symbols:
         volume = 0.0
         high = -sys.maxsize
         low = sys.maxsize
         open = 0.0
         close = 0.0
-        for i in reversed(range(0, 2)):  # Fetching Data for last 15 minute interval
-            time_epochs = int((time.time() // 60 - i * 15) * 60000)
+        for i in range(start_30_min * 2, (start_30_min*2) + 2):  # Fetching Data for last 15 minute interval
+            time_epochs = int(i * 15 * 60)
+            print(datetime.datetime.utcfromtimestamp(time_epochs))
             key = str(time_epochs) + symbol + "-15m"
             if r.exists(key):
                 li = r.get(key)
@@ -209,14 +212,13 @@ def process_30m_data():
                 low = min(low, row[3])
                 r.delete(key)
         output_list = [(int(time.time() // 60) * 60000), open, high, low, close, volume]
-        if not r.exists(str(int((start // 60) * 60000)) + symbol + "-30m"):
-            r.set(str(int((start // 60) * 60000)) + symbol + "-30m", str(json.dumps(output_list)), ex=70 * 60)
+        if not r.exists(str(start_30_min * 30 * 60) + symbol + "-30m"):
+            r.set(str(start_30_min * 30 * 60) + symbol + "-30m", str(json.dumps(output_list)), ex=70 * 60)
             output_list[0] = pd.to_datetime(output_list[0] / 1000, unit='s').tz_localize("GMT")
             df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])
             df.set_index('t', inplace=True)
             library.append(symbol + '-30m', df, upsert=True)
 
-    m.close()
     return "30m job executed successfully"
 
 
@@ -226,19 +228,21 @@ def process_30m_data():
 @crontab.job(minute="*/60")
 @app.route('/get60m')
 def process_60m_data():
-    time.sleep(45)  # Delay to provide buffer space to 30 m job
     start = time.time()
     r = redis.Redis(host='localhost', port=6379, db=0)
     symbols = json.loads(r.get("symbols"))
     library = app.store['BINANCE_EXCHANGE']
+    start_60_min = (start // 60) //60
+    start_60_min = int(start_60_min - 1)
     for symbol in symbols:
         volume = 0.0
         high = -sys.maxsize
         low = sys.maxsize
         open = 0.0
         close = 0.0
-        for i in reversed(range(0, 2)):
-            time_epochs = int((time.time() // 60 - i * 30) * 60000)
+        for i in range(start_60_min*2, (start_60_min*2) + 2):
+            time_epochs = int(i * 30 * 60)
+            print(datetime.datetime.utcfromtimestamp(time_epochs))
             key = str(time_epochs) + symbol + "-30m"
             if r.exists(key):
                 li = r.get(key)
@@ -252,14 +256,13 @@ def process_60m_data():
                 low = min(low, row[3])
                 r.delete(key)
         output_list = [(int(time.time() // 60) * 60000), open, high, low, close, volume]
-        if not r.exists(str(int((start // 60) * 60000)) + symbol + "-60m"):
-            r.set(str(int((start // 60) * 60000)) + symbol + "-60m", str(json.dumps(output_list)), ex=100 * 60)
+        if not r.exists(str(start_60_min * 60 * 60) + symbol + "-60m"):
+            r.set(str(start_60_min * 60 * 60) + symbol + "-60m", str(json.dumps(output_list)), ex=100 * 60)
             output_list[0] = pd.to_datetime(output_list[0] / 1000, unit='s').tz_localize("GMT")
             df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])
             df.set_index('t', inplace=True)
             library.append(symbol + '-60m', df, upsert=True)
 
-    m.close()
     return "60m job executed successfully"
 
 
@@ -273,8 +276,8 @@ def check_data_quality():
     library = app.store['BINANCE_EXCHANGE']
     r = redis.Redis(host='localhost', port=6379, db=0)
     symbols = json.loads(r.get("symbols"))
-    # dr = DateRange(datetime.datetime.utcfromtimestamp(time.time()) - datetime.timedelta(hours=24),
-    #               datetime.datetime.utcfromtimestamp(time.time()))  # DateRange for last 24 hours in utc timestamp
+    dr = DateRange(datetime.datetime.utcfromtimestamp(time.time()) - datetime.timedelta(hours=24),
+                  datetime.datetime.utcfromtimestamp(time.time()))  # DateRange for last 24 hours in utc timestamp
     dr = DateRange(datetime.datetime.utcfromtimestamp(1609718400),
                    datetime.datetime.utcfromtimestamp(1609754400))
     count = 0
