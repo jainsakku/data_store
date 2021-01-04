@@ -82,7 +82,7 @@ def process_1m_data():
         symbols = json.loads(r.get("symbols"))  # Loading active markets form redis
         with concurrent.futures.ThreadPoolExecutor(
                 max_workers=len(symbols)) as executor:  # Executing fetch script in concurrent manner
-            market_workers = {executor.submit(_fetch_result, symbol, app.db):
+            market_workers = {executor.submit(_fetch_result, symbol, app.store):
                                   symbol for symbol in symbols}
         end = time.time()
         print(f'{end - start:.2f}')
@@ -126,9 +126,9 @@ def process_5m_data():
                 li = r.get(key)
                 row = json.loads(li)
                 volume = volume + row[5]
-                if i == 0:
+                if i == (start_5_min * 5) + 4:
                     close = row[4]
-                if i == 4:
+                if i == start_5_min * 5:
                     open = row[1]
                 high = max(high, row[2])
                 low = min(low, row[3])
@@ -176,9 +176,9 @@ def process_15m_data():
                 li = r.get(key)
                 row = json.loads(li)
                 volume = volume + row[5]
-                if i == 0:
+                if i == (start_15_min*3) + 2:
                     close = row[4]
-                if i == 2:
+                if i == start_15_min * 3:
                     open = row[1]
                 high = max(high, row[2])
                 low = min(low, row[3])
@@ -220,9 +220,9 @@ def process_30m_data():
                 li = r.get(key)
                 row = json.loads(li)
                 volume = volume + row[5]
-                if i == 0:
+                if i == (start_30_min*2) + 1:
                     close = row[4]
-                if i == 1:
+                if i == start_30_min * 2:
                     open = row[1]
                 high = max(high, row[2])
                 low = min(low, row[3])
@@ -267,9 +267,9 @@ def process_60m_data():
                 li = r.get(key)
                 row = json.loads(li)
                 volume = volume + row[5]
-                if i == 0:
+                if i == (start_60_min*2) + 1:
                     close = row[4]
-                if i == 1:
+                if i == start_60_min*2:
                     open = row[1]
                 high = max(high, row[2])
                 low = min(low, row[3])
