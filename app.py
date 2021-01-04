@@ -60,15 +60,14 @@ def process_1m_data():
                     ret.append(time.time() - t1)
                     t1 = time.time()
                     # data[0][0] = pd.to_datetime(data[0][0], unit='ms') # converting epochs to timestamp utc
-                    df = pd.DataFrame([data[0]], columns=['t', 'o', 'h', 'l', 'c', 'v'])
-                    df.set_index('t', inplace=True)
-                    df['o'] = pd.to_numeric(df['o'])
-                    df['h'] = pd.to_numeric(df['h'])
-                    df['l'] = pd.to_numeric(df['l'])
-                    df['c'] = pd.to_numeric(df['c'])
-                    df['v'] = pd.to_numeric(df['v'])
-                    df.index = pd.to_datetime(df.index,unit='ms')
-                    df.index = df.index.round("S")
+                    li = data[0]
+                    df = []
+                    df["_id"] = li[0]
+                    df['o'] = li[1]
+                    df['h'] = li[2]
+                    df['l'] = li[3]
+                    df['c'] = li[4]
+                    df['v'] = li[5]
                     ret.append(time.time() - t1)
                     t1 = time.time()
                     # library.append(symbol + "-1m", df, upsert=True)  # writing dataframe to the arctic db
