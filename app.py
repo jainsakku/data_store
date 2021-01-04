@@ -84,14 +84,6 @@ def process_1m_data():
                 max_workers=len(symbols)) as executor:  # Executing fetch script in concurrent manner
             market_workers = {executor.submit(_fetch_result, symbol, app.db):
                                   symbol for symbol in symbols}
-            for worker in concurrent.futures.as_completed(market_workers):
-                market = market_workers[worker]
-                # print(market)
-                try:
-                    raw_data = worker.result()
-                    print(raw_data)
-                except Exception as e:
-                    print(e)
         end = time.time()
         print(f'{end - start:.2f}')
         print("Success")
