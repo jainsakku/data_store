@@ -21,8 +21,10 @@ from pymongo import MongoClient
 
 app = Flask(__name__)
 crontab = Crontab(app)
-m = MongoClient("localhost")
-app.store = Arctic(m,
+
+client = MongoClient("mongodb+srv://root:root@cluster0.medqk.mongodb.net/arctic?retryWrites=true&w=majority")
+
+app.store = Arctic(client,
                    serverSelectionTimeoutMS=2500,
                    socketTimeoutMS=2500,
                    connectTimeoutMS=2500)  # connecting to local mongo server
