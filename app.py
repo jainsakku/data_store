@@ -65,6 +65,8 @@ def process_1m_data():
                     df['l'] = pd.to_numeric(df['l'])
                     df['c'] = pd.to_numeric(df['c'])
                     df['v'] = pd.to_numeric(df['v'])
+                    ret.append(time.time() - t1)
+                    t1 = time.time()
                     library.append(symbol + "-1m", df, upsert=True)  # writing dataframe to the arctic db
                     ret.append(time.time() - t1)
                     t1 = time.time()
