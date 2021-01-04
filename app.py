@@ -23,7 +23,7 @@ app = Flask(__name__)
 crontab = Crontab(app)
 
 client = MongoClient("localhost")
-app.db = client['Arctic_data']
+app.store = client['Arctic_data']
 
 # app.store = Arctic(client,
 #                    serverSelectionTimeoutMS=2500,
@@ -61,17 +61,11 @@ def process_1m_data():
                     t1 = time.time()
                     # data[0][0] = pd.to_datetime(data[0][0], unit='ms') # converting epochs to timestamp utc
                     li = data[0]
-                    df = []
-                    df["_id"] = li[0]
-                    df['o'] = li[1]
-                    df['h'] = li[2]
-                    df['l'] = li[3]
-                    df['c'] = li[4]
-                    df['v'] = li[5]
+                    df = {"_id": li[0], 'o': li[1], 'h': li[2], 'l': li[3], 'c': li[4], 'v': li[5]}
                     ret.append(time.time() - t1)
                     t1 = time.time()
                     # library.append(symbol + "-1m", df, upsert=True)  # writing dataframe to the arctic db
-                    mycol = store[symbol]
+                    mycol = store[symbol+"-1m"]
                     mycol.insert_one(df)
                     ret.append(time.time() - t1)
                     t1 = time.time()
@@ -121,7 +115,7 @@ def process_5m_data():
     from flask import current_app as app
     start = time.time()
     r = redis.Redis(host='localhost', port=6379, db=0)
-    library = app.store['BINANCE_EXCHANGE']
+    # library = app.store['BINANCE_EXCHANGE']
     symbols = json.loads(r.get("symbols"))
     start_5_min =(start // 60) // 5
     start_5_min = int(start_5_min - 1)
@@ -147,13 +141,17 @@ def process_5m_data():
                 high = max(high, row[2])
                 low = min(low, row[3])
                 r.delete(key)  # freeing the cache space after use
-        output_list = [int((time.time() // 60) * 60000), open, high, low, close, volume]
+        output_list = [int(start_5_min*5*60), open, high, low, close, volume]
         if not r.exists(str(start_5_min*5*60) + symbol + "-5m"):
             r.set(str(start_5_min * 5 * 60) + symbol + "-5m", str(json.dumps(output_list)), ex=20 * 60)
-            output_list[0] = pd.to_datetime(output_list[0] / 1000, unit='s').tz_localize("GMT")
-            df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])
-            df.set_index('t', inplace=True)
-            library.append(symbol + '-5m', df, upsert=True)
+            # output_list[0] = pd.to_datetime(output_list[0] / 1000, unit='s').tz_localize("GMT")
+            # df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])
+            # df.set_index('t', inplace=True)
+            df = {"_id": output_list[0], 'o': output_list[1], 'h': output_list[2], 'l': output_list[3],
+                  'c': output_list[4], 'v': output_list[5]}
+            mycol = app.store[symbol + "-5m"]
+            mycol.insert_one(df)
+            # library.append(symbol + '-5m', df, upsert=True)
 
     end = time.time()
     print(f'{end - start:.2f}')
@@ -169,7 +167,7 @@ def process_15m_data():
     from flask import current_app as app
     start = time.time()
     r = redis.Redis(host='localhost', port=6379, db=0)
-    library = app.store['BINANCE_EXCHANGE']
+    # library = app.store['BINANCE_EXCHANGE']
     symbols = json.loads(r.get("symbols"))
     start_15_min = (start // 60) // 15
     start_15_min = int(start_15_min - 1)
@@ -193,13 +191,14 @@ def process_15m_data():
                 high = max(high, row[2])
                 low = min(low, row[3])
                 r.delete(key)  # Freeing cache after use
-        output_list = [int(time.time()), open, high, low, close, volume]
+        output_list = [int(start_15_min*15*6), open, high, low, close, volume]
         if not r.exists(str(start_15_min*15*60) + symbol + "-15m"):
             r.set(str(start_15_min*15*60) + symbol + "-15m", str(json.dumps(output_list)), ex=40 * 60)
-            output_list[0] = pd.to_datetime(output_list[0], unit='s').tz_localize("GMT")
-            df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])  # Dataframe to feed in the db
-            df.set_index('t', inplace=True)
-            library.append(symbol + '-15m', df, upsert=True)
+            df = {"_id": output_list[0], 'o': output_list[1], 'h': output_list[2], 'l': output_list[3],
+                  'c': output_list[4], 'v': output_list[5]}
+            mycol = app.store[symbol + "-15m"]
+            mycol.insert_one(df)
+            # library.append(symbol + '-15m', df, upsert=True)
 
     return "15m job executed successfully"
 
@@ -212,7 +211,7 @@ def process_15m_data():
 def process_30m_data():
     start = time.time()
     r = redis.Redis(host='localhost', port=6379, db=0)
-    library = app.store['BINANCE_EXCHANGE']
+    # library = app.store['BINANCE_EXCHANGE']
     symbols = json.loads(r.get("symbols"))
     start_30_min = (start // 60) // 30
     start_30_min = int(start_30_min - 1)
@@ -236,13 +235,17 @@ def process_30m_data():
                 high = max(high, row[2])
                 low = min(low, row[3])
                 r.delete(key)
-        output_list = [(int(time.time() // 60) * 60000), open, high, low, close, volume]
+        output_list = [(int(start_30_min * 30 * 60)), open, high, low, close, volume]
         if not r.exists(str(start_30_min * 30 * 60) + symbol + "-30m"):
             r.set(str(start_30_min * 30 * 60) + symbol + "-30m", str(json.dumps(output_list)), ex=70 * 60)
-            output_list[0] = pd.to_datetime(output_list[0] / 1000, unit='s').tz_localize("GMT")
-            df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])
-            df.set_index('t', inplace=True)
-            library.append(symbol + '-30m', df, upsert=True)
+            # output_list[0] = pd.to_datetime(output_list[0] / 1000, unit='s').tz_localize("GMT")
+            # df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])
+            # df.set_index('t', inplace=True)
+            df = {"_id": output_list[0], 'o': output_list[1], 'h': output_list[2], 'l': output_list[3],
+                  'c': output_list[4], 'v': output_list[5]}
+            mycol = app.store[symbol + "-30m"]
+            mycol.insert_one(df)
+            # library.append(symbol + '-30m', df, upsert=True)
 
     return "30m job executed successfully"
 
@@ -256,7 +259,7 @@ def process_60m_data():
     start = time.time()
     r = redis.Redis(host='localhost', port=6379, db=0)
     symbols = json.loads(r.get("symbols"))
-    library = app.store['BINANCE_EXCHANGE']
+    # library = app.store['BINANCE_EXCHANGE']
     start_60_min = (start // 60) //60
     start_60_min = int(start_60_min - 1)
     for symbol in symbols:
@@ -279,13 +282,13 @@ def process_60m_data():
                 high = max(high, row[2])
                 low = min(low, row[3])
                 r.delete(key)
-        output_list = [(int(time.time() // 60) * 60000), open, high, low, close, volume]
+        output_list = [(int(start_60_min * 60 * 60)), open, high, low, close, volume]
         if not r.exists(str(start_60_min * 60 * 60) + symbol + "-60m"):
             r.set(str(start_60_min * 60 * 60) + symbol + "-60m", str(json.dumps(output_list)), ex=100 * 60)
-            output_list[0] = pd.to_datetime(output_list[0] / 1000, unit='s').tz_localize("GMT")
-            df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])
-            df.set_index('t', inplace=True)
-            library.append(symbol + '-60m', df, upsert=True)
+            df = {"_id": output_list[0], 'o': output_list[1], 'h': output_list[2], 'l': output_list[3],
+                  'c': output_list[4], 'v': output_list[5]}
+            mycol = app.store[symbol + "-60m"]
+            mycol.insert_one(df)
 
     return "60m job executed successfully"
 
@@ -293,79 +296,79 @@ def process_60m_data():
 # cron job to check the quality of data fetched
 # mails daily report
 # Job Triggers in every 24 minute starting at 00:00
-@crontab.job(minute="0", hour="0")
-@app.route('/check_data_quality')
-def check_data_quality():
-    from flask import current_app as app
-    library = app.store['BINANCE_EXCHANGE']
-    r = redis.Redis(host='localhost', port=6379, db=0)
-    symbols = json.loads(r.get("symbols"))
-    dr = DateRange(datetime.datetime.utcfromtimestamp(time.time()) - datetime.timedelta(hours=24),
-                  datetime.datetime.utcfromtimestamp(time.time()))  # DateRange for last 24 hours in utc timestamp
-    count = 0
-    with open("report.txt", 'w') as rep:  # File that is attached in the mail
-        for symbol in symbols:
-            try:
-                # calculating missing data due to 1m job
-                rep.write("\n\nFor symbol " + symbol + "\n")
-                df = library.read(symbol + "-1m", date_range=dr).data
-                count = len(df.index)
-                rep.write(symbol + "missed 1m data percentage: " + str((480 - count) * 100 / 480) + "\n")
-
-                # calculating missing data due to 5m job
-                df = library.read(symbol + "-5m", date_range=dr).data
-                count = len(df.index)
-                rep.write(symbol + "missed 5m data percentage: " + str((96 - count) * 100 / 96) + "\n")
-
-                # calculating missing data due to 15m job
-                df = library.read(symbol + "-15m", date_range=dr).data
-                count = len(df.index)
-                rep.write(symbol + "missed 15m data percentage: " + str((32 - count) * 100 / 32) + "\n")
-
-                # calculating missing data due to 30m job
-                df = library.read(symbol + "-30m", date_range=dr).data
-                count = len(df.index)
-                rep.write(symbol + "missed 30m data percentage: " + str((16 - count) * 100 / 16) + "\n")
-
-                # calculating missing data due to 60m job
-                df = library.read(symbol + "-60m", date_range=dr).data
-                count = len(df.index)
-                rep.write(symbol + "missed 60m data percentage: " + str((8 - count) * 100 / 8) + "\n")
-
-            except Exception as e:
-                print(e)
-                count += 1
-    try:
-        print(count)
-
-        sender_address = 'saksham.jain2109@gmail.com'
-        sender_pass = 'Vmc1234$'
-        receiver_address = 'jainsaksham36b@gmail.com'
-        # Setup the MIME
-        message = MIMEMultipart()
-        message['From'] = sender_address
-        message['To'] = receiver_address
-        message['Subject'] = 'Daily report for Fetch data'
-        message.attach(MIMEText("Hello\n please find the daily report", 'plain'))
-        attach_file_name = 'report.txt'
-        attach_file = open(attach_file_name, 'rb')  # Open the file as binary mode
-        payload = MIMEBase('application', 'octate-stream')
-        payload.set_payload((attach_file).read())
-        encoders.encode_base64(payload)  # encode the attachment
-        # add payload header with filename
-        payload.add_header('Content-Decomposition', 'attachment', filename=attach_file_name)
-        message.attach(payload)
-        # Create SMTP session for sending the mail
-        session = smtplib.SMTP('smtp.gmail.com', 587)  # use gmail with port
-        session.starttls()  # enable security
-        session.login(sender_address, sender_pass)  # login with mail_id and password
-        text = message.as_string()
-        session.sendmail(sender_address, receiver_address, text)
-        session.quit()
-    except Exception as e:
-        print(e)
-    m.close()
-    return "Job ended"
+# @crontab.job(minute="0", hour="0")
+# @app.route('/check_data_quality')
+# def check_data_quality():
+#     from flask import current_app as app
+#     library = app.store['BINANCE_EXCHANGE']
+#     r = redis.Redis(host='localhost', port=6379, db=0)
+#     symbols = json.loads(r.get("symbols"))
+#     dr = DateRange(datetime.datetime.utcfromtimestamp(time.time()) - datetime.timedelta(hours=24),
+#                   datetime.datetime.utcfromtimestamp(time.time()))  # DateRange for last 24 hours in utc timestamp
+#     count = 0
+#     with open("report.txt", 'w') as rep:  # File that is attached in the mail
+#         for symbol in symbols:
+#             try:
+#                 # calculating missing data due to 1m job
+#                 rep.write("\n\nFor symbol " + symbol + "\n")
+#                 df = library.read(symbol + "-1m", date_range=dr).data
+#                 count = len(df.index)
+#                 rep.write(symbol + "missed 1m data percentage: " + str((480 - count) * 100 / 480) + "\n")
+#
+#                 # calculating missing data due to 5m job
+#                 df = library.read(symbol + "-5m", date_range=dr).data
+#                 count = len(df.index)
+#                 rep.write(symbol + "missed 5m data percentage: " + str((96 - count) * 100 / 96) + "\n")
+#
+#                 # calculating missing data due to 15m job
+#                 df = library.read(symbol + "-15m", date_range=dr).data
+#                 count = len(df.index)
+#                 rep.write(symbol + "missed 15m data percentage: " + str((32 - count) * 100 / 32) + "\n")
+#
+#                 # calculating missing data due to 30m job
+#                 df = library.read(symbol + "-30m", date_range=dr).data
+#                 count = len(df.index)
+#                 rep.write(symbol + "missed 30m data percentage: " + str((16 - count) * 100 / 16) + "\n")
+#
+#                 # calculating missing data due to 60m job
+#                 df = library.read(symbol + "-60m", date_range=dr).data
+#                 count = len(df.index)
+#                 rep.write(symbol + "missed 60m data percentage: " + str((8 - count) * 100 / 8) + "\n")
+#
+#             except Exception as e:
+#                 print(e)
+#                 count += 1
+#     try:
+#         print(count)
+#
+#         sender_address = 'saksham.jain2109@gmail.com'
+#         sender_pass = 'Vmc1234$'
+#         receiver_address = 'jainsaksham36b@gmail.com'
+#         # Setup the MIME
+#         message = MIMEMultipart()
+#         message['From'] = sender_address
+#         message['To'] = receiver_address
+#         message['Subject'] = 'Daily report for Fetch data'
+#         message.attach(MIMEText("Hello\n please find the daily report", 'plain'))
+#         attach_file_name = 'report.txt'
+#         attach_file = open(attach_file_name, 'rb')  # Open the file as binary mode
+#         payload = MIMEBase('application', 'octate-stream')
+#         payload.set_payload((attach_file).read())
+#         encoders.encode_base64(payload)  # encode the attachment
+#         # add payload header with filename
+#         payload.add_header('Content-Decomposition', 'attachment', filename=attach_file_name)
+#         message.attach(payload)
+#         # Create SMTP session for sending the mail
+#         session = smtplib.SMTP('smtp.gmail.com', 587)  # use gmail with port
+#         session.starttls()  # enable security
+#         session.login(sender_address, sender_pass)  # login with mail_id and password
+#         text = message.as_string()
+#         session.sendmail(sender_address, receiver_address, text)
+#         session.quit()
+#     except Exception as e:
+#         print(e)
+#     m.close()
+#     return "Job ended"
 
 
 if __name__ == "__main__":
