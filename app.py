@@ -102,9 +102,7 @@ def process_5m_data():
         low = sys.maxsize
         open = 0.0
         close = 0.0
-        print(symbol)
         for i in range(start_5_min * 5, (start_5_min*5) + 5):
-            print(datetime.datetime.utcfromtimestamp(i*60))
             time_epochs = int(i * 60)  # Fetching data for the last 5 minutes
             key = (str(time_epochs) + symbol + "-1m")
 
@@ -146,7 +144,6 @@ def process_15m_data():
     start_15_min = (start // 60) // 15
     start_15_min = int(start_15_min - 1)
     for symbol in symbols:
-        print
         volume = 0.0
         high = -sys.maxsize
         low = sys.maxsize
@@ -154,7 +151,6 @@ def process_15m_data():
         close = 0.0
         for i in range(start_15_min * 3, (start_15_min*3) + 3):  # Fetching data from cache for last 15 minutes from 5 minute interval
             time_epochs = int(i*5*60)
-            print(datetime.datetime.utcfromtimestamp(time_epochs))
             key = str(time_epochs) + symbol + "-5m"
             if r.exists(key):  # check to avoid duplicate elements
                 li = r.get(key)
@@ -198,7 +194,6 @@ def process_30m_data():
         close = 0.0
         for i in range(start_30_min * 2, (start_30_min*2) + 2):  # Fetching Data for last 15 minute interval
             time_epochs = int(i * 15 * 60)
-            print(datetime.datetime.utcfromtimestamp(time_epochs))
             key = str(time_epochs) + symbol + "-15m"
             if r.exists(key):
                 li = r.get(key)
@@ -242,7 +237,6 @@ def process_60m_data():
         close = 0.0
         for i in range(start_60_min*2, (start_60_min*2) + 2):
             time_epochs = int(i * 30 * 60)
-            print(datetime.datetime.utcfromtimestamp(time_epochs))
             key = str(time_epochs) + symbol + "-30m"
             if r.exists(key):
                 li = r.get(key)
@@ -278,8 +272,6 @@ def check_data_quality():
     symbols = json.loads(r.get("symbols"))
     dr = DateRange(datetime.datetime.utcfromtimestamp(time.time()) - datetime.timedelta(hours=24),
                   datetime.datetime.utcfromtimestamp(time.time()))  # DateRange for last 24 hours in utc timestamp
-    dr = DateRange(datetime.datetime.utcfromtimestamp(1609718400),
-                   datetime.datetime.utcfromtimestamp(1609754400))
     count = 0
     with open("report.txt", 'w') as rep:  # File that is attached in the mail
         for symbol in symbols:
