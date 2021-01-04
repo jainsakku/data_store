@@ -17,10 +17,12 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
+from pymongo import MongoClient
 
 app = Flask(__name__)
 crontab = Crontab(app)
-store = Arctic("localhost")  # connecting to local mongo server
+m = MongoClient("localhost")
+store = Arctic(m)  # connecting to local mongo server
 store.initialize_library("BINANCE_EXCHANGE")  # initializing library for the arctic
 
 
@@ -34,7 +36,8 @@ def process_1m_data():
     def _fetch_result(symbol):
         data = binance.fetch_ohlcv(symbol, "1m",
                                    int((time.time() // 60 - 1) * 60000))  # fetching ohlcv data from binance
-        store = Arctic("localhost")  # connecting to local mongo server
+        m = MongoClient("localhost")
+        store = Arctic(m)  # connecting to local mongo server
         library = store['BINANCE_EXCHANGE']
         if len(data) > 0:
             if not r.exists(str(int((start // 60) * 60000)) + symbol + "-1m"):  # check so as to prevent duplicate data in same interval
@@ -45,10 +48,11 @@ def process_1m_data():
                     data[0][0] = pd.to_datetime(data[0][0] / 1000, unit='s').tz_localize("GMT")  # converting epochs to timestamp utc
                     df = pd.DataFrame([data[0]], columns=['t', 'o', 'h', 'l', 'c', 'v'])
                     df.set_index('t', inplace=True)
-                    library.write(symbol + "-1m", df)  # writing dataframe to the arctic db
+                    library.append(symbol + "-1m", df, upsert=True)  # writing dataframe to the arctic db
                 except Exception as e:
                     print(e)
 
+        m.close()
         return
 
     try:
@@ -65,7 +69,7 @@ def process_1m_data():
         print("Success")
     except Exception as e:
         print(e)
-    return str(count)
+    return "Job 1m Triggered successfully"
 
 
 # open -1
@@ -83,7 +87,8 @@ def process_5m_data():
     time.sleep(10)  # Delay to provide mutual exclusiveness for 1m job
     start = time.time()
     r = redis.Redis(host='localhost', port=6379, db=0)
-    store = Arctic("localhost")  # connecting to local mongo server
+    m = MongoClient("localhost")
+    store = Arctic(m)  # connecting to local mongo server
     library = store['BINANCE_EXCHANGE']
     symbols = json.loads(r.get("symbols"))
     for symbol in symbols:
@@ -113,10 +118,11 @@ def process_5m_data():
             output_list[0] = pd.to_datetime(output_list[0] / 1000, unit='s').tz_localize("GMT")
             df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])
             df.set_index('t', inplace=True)
-            library.write(symbol + '-5m', df)
+            library.append(symbol + '-5m', df, upsert=True)
 
     end = time.time()
     print(f'{end - start:.2f}')
+    m.close()
     return "5m Job executed successfully"
 
 
@@ -129,7 +135,8 @@ def process_15m_data():
     time.sleep(25)  # Delay to provide mutual exclusiveness for 5m job
     start = time.time()
     r = redis.Redis(host='localhost', port=6379, db=0)
-    store = Arctic("localhost")  # connecting to local mongo server
+    m = MongoClient("localhost")
+    store = Arctic(m)  # connecting to local mongo server
     library = store['BINANCE_EXCHANGE']
     symbols = json.loads(r.get("symbols"))
     for symbol in symbols:
@@ -158,8 +165,9 @@ def process_15m_data():
             output_list[0] = pd.to_datetime(output_list[0], unit='s').tz_localize("GMT")
             df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])  # Dataframe to feed in the db
             df.set_index('t', inplace=True)
-            library.write(symbol + '-15m', df)
+            library.append(symbol + '-15m', df, upsert=True)
 
+    m.close()
     return "15m job executed successfully"
 
 
@@ -172,7 +180,8 @@ def process_30m_data():
     time.sleep(35)  # delay to provide space to 15m job
     start = time.time()
     r = redis.Redis(host='localhost', port=6379, db=0)
-    store = Arctic("localhost")  # connecting to local mongo server
+    m = MongoClient("localhost")
+    store = Arctic(m)  # connecting to local mongo server
     library = store['BINANCE_EXCHANGE']
     symbols = json.loads(r.get("symbols"))
     for symbol in symbols:
@@ -201,8 +210,9 @@ def process_30m_data():
             output_list[0] = pd.to_datetime(output_list[0] / 1000, unit='s').tz_localize("GMT")
             df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])
             df.set_index('t', inplace=True)
-            library.write(symbol + '-30m', df)
+            library.append(symbol + '-30m', df, upsert=True)
 
+    m.close()
     return "30m job executed successfully"
 
 
@@ -216,7 +226,8 @@ def process_60m_data():
     start = time.time()
     r = redis.Redis(host='localhost', port=6379, db=0)
     symbols = json.loads(r.get("symbols"))
-    store = Arctic("localhost")  # connecting to local mongo server
+    m = MongoClient("localhost")
+    store = Arctic(m)  # connecting to local mongo server
     library = store['BINANCE_EXCHANGE']
     for symbol in symbols:
         volume = 0.0
@@ -244,8 +255,9 @@ def process_60m_data():
             output_list[0] = pd.to_datetime(output_list[0] / 1000, unit='s').tz_localize("GMT")
             df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])
             df.set_index('t', inplace=True)
-            library.write(symbol + '-60m', df)
+            library.append(symbol + '-60m', df, upsert=True)
 
+    m.close()
     return "60m job executed successfully"
 
 
@@ -255,12 +267,15 @@ def process_60m_data():
 @crontab.job(minute="0", hour="0")
 @app.route('/check_data_quality')
 def check_data_quality():
-    store = Arctic("localhost")  # connecting to local mongo server
+    m = MongoClient("localhost")
+    store = Arctic(m)  # connecting to local mongo server
     library = store['BINANCE_EXCHANGE']
     r = redis.Redis(host='localhost', port=6379, db=0)
     symbols = json.loads(r.get("symbols"))
-    dr = DateRange(datetime.datetime.utcfromtimestamp(time.time()) - datetime.timedelta(hours=24),
-                   datetime.datetime.utcfromtimestamp(time.time()))  # DateRange for last 24 hours in utc timestamp
+    #dr = DateRange(datetime.datetime.utcfromtimestamp(time.time()) - datetime.timedelta(hours=24),
+    #               datetime.datetime.utcfromtimestamp(time.time()))  # DateRange for last 24 hours in utc timestamp
+    dr = DateRange(datetime.datetime.utcfromtimestamp(1609718400),
+                   datetime.datetime.utcfromtimestamp(1609754400))
     count = 0
     with open("report.txt", 'w') as rep:  # File that is attached in the mail
         for symbol in symbols:
@@ -269,32 +284,27 @@ def check_data_quality():
                 rep.write("\n\nFor symbol " + symbol + "\n")
                 df = library.read(symbol + "-1m", date_range=dr).data
                 count = len(df.index)
-                if count < 1440:
-                    rep.write(symbol + "missed 1m data percentage: " + str((1440 - count) * 100 / 1440) + "\n")
+                rep.write(symbol + "missed 1m data percentage: " + str((480 - count) * 100 / 480) + "\n")
 
                 # calculating missing data due to 5m job
                 df = library.read(symbol + "-5m", date_range=dr).data
                 count = len(df.index)
-                if count < 288:
-                    rep.write(symbol + "missed 5m data percentage: " + str((288 - count) * 100 / 288) + "\n")
+                rep.write(symbol + "missed 5m data percentage: " + str((96 - count) * 100 / 96) + "\n")
 
                 # calculating missing data due to 15m job
                 df = library.read(symbol + "-15m", date_range=dr).data
                 count = len(df.index)
-                if count < 96:
-                    rep.write(symbol + "missed 15m data percentage: " + str((96 - count) * 100 / 96) + "\n")
+                rep.write(symbol + "missed 15m data percentage: " + str((32 - count) * 100 / 32) + "\n")
 
                 # calculating missing data due to 30m job
                 df = library.read(symbol + "-30m", date_range=dr).data
                 count = len(df.index)
-                if count < 48:
-                    rep.write(symbol + "missed 30m data percentage: " + str((48 - count) * 100 / 48) + "\n")
+                rep.write(symbol + "missed 30m data percentage: " + str((16 - count) * 100 / 16) + "\n")
 
                 # calculating missing data due to 60m job
                 df = library.read(symbol + "-60m", date_range=dr).data
                 count = len(df.index)
-                if count < 24:
-                    rep.write(symbol + "missed 60m data percentage: " + str((24 - count) * 100 / 24) + "\n")
+                rep.write(symbol + "missed 60m data percentage: " + str((8 - count) * 100 / 8) + "\n")
 
             except Exception as e:
                 print(e)
@@ -328,6 +338,7 @@ def check_data_quality():
         session.quit()
     except Exception as e:
         print(e)
+    m.close()
     return "Job ended"
 
 
