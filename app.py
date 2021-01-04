@@ -43,11 +43,12 @@ def process_1m_data():
         # m = MongoClient("localhost")
         # store = Arctic(m)  # connecting to local mongo server
         library = app.store['BINANCE_EXCHANGE']
+        app.logger.debug("Library ini")
         if len(data) > 0:
             if not r.exists(str(int(
                     (start // 60) * 60000)) + symbol + "-1m"):  # check so as to prevent duplicate data in same interval
                 try:
-
+                    app.logger.debug("In try")
                     r.set(str(int((start // 60) * 60000)) + symbol + "-1m",
                           str(json.dumps(data[0])), ex=10 * 60)  # updating redis cache with the fetched interval
                     data[0][0] = pd.to_datetime(data[0][0] / 1000, unit='s').tz_localize(
@@ -55,6 +56,7 @@ def process_1m_data():
                     df = pd.DataFrame([data[0]], columns=['t', 'o', 'h', 'l', 'c', 'v'])
                     df.set_index('t', inplace=True)
                     library.append(symbol + "-1m", df, upsert=True)  # writing dataframe to the arctic db
+                    app.logger.debug("after append")
                 except Exception as e:
                     print(e)
 
