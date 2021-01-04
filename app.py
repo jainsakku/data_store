@@ -56,8 +56,7 @@ def process_1m_data():
                           str(json.dumps(data[0])), ex=10 * 60)  # updating redis cache with the fetched interval
                     ret.append(time.time() - t1)
                     t1 = time.time()
-                    data[0][0] = pd.to_datetime(data[0][0] / 1000, unit='s').tz_localize(
-                        "GMT")  # converting epochs to timestamp utc
+                    # data[0][0] = pd.to_datetime(data[0][0], unit='ms') # converting epochs to timestamp utc
                     df = pd.DataFrame([data[0]], columns=['t', 'o', 'h', 'l', 'c', 'v'])
                     df.set_index('t', inplace=True)
                     df['o'] = pd.to_numeric(df['o'])
@@ -65,6 +64,8 @@ def process_1m_data():
                     df['l'] = pd.to_numeric(df['l'])
                     df['c'] = pd.to_numeric(df['c'])
                     df['v'] = pd.to_numeric(df['v'])
+                    df.index = pd.to_datetime(df.index,unit='ms')
+                    df.index = df.index.round("S")
                     ret.append(time.time() - t1)
                     t1 = time.time()
                     library.append(symbol + "-1m", df, upsert=True)  # writing dataframe to the arctic db
