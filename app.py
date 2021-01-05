@@ -7,7 +7,6 @@ import time
 import redis
 from flask_crontab import Crontab
 import json
-from arctic import Arctic
 import sys
 import concurrent.futures
 import pandas as pd
@@ -25,12 +24,6 @@ crontab = Crontab(app)
 client = MongoClient("localhost")
 app.store = client['Arctic_data']
 
-# app.store = Arctic(client,
-#                    serverSelectionTimeoutMS=2500,
-#                    socketTimeoutMS=2500,
-#                    connectTimeoutMS=2500)  # connecting to local mongo server
-# app.store.initialize_library("BINANCE_EXCHANGE")  # initializing library for the arctic
-
 
 # cron job to fetch the 1 minute result for all markets
 # from the binance exchange and store them in redis cache for fast processing for higher intervals
@@ -47,9 +40,6 @@ def process_1m_data():
                                    int((time.time() // 60 - 1) * 60000))  # fetching ohlcv data from binance
         ret.append(time.time()-t1)
         t1 = time.time()
-        # m = MongoClient("localhost")
-        # store = Arctic(m)  # connecting to local mongo server
-        # library = store['BINANCE_EXCHANGE']
         ret.append(time.time() - t1)
         t1 = time.time()
         if len(data) > 0:
@@ -107,7 +97,6 @@ def process_5m_data():
     from flask import current_app as app
     start = time.time()
     r = redis.Redis(host='localhost', port=6379, db=0)
-    # library = app.store['BINANCE_EXCHANGE']
     symbols = json.loads(r.get("symbols"))
     start_5_min =(start // 60) // 5
     start_5_min = int(start_5_min - 1)
@@ -136,9 +125,6 @@ def process_5m_data():
         output_list = [int(start_5_min*5*60), open, high, low, close, volume]
         if not r.exists(str(start_5_min*5*60) + symbol + "-5m"):
             r.set(str(start_5_min * 5 * 60) + symbol + "-5m", str(json.dumps(output_list)), ex=20 * 60)
-            # output_list[0] = pd.to_datetime(output_list[0] / 1000, unit='s').tz_localize("GMT")
-            # df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])
-            # df.set_index('t', inplace=True)
             df = {"t": output_list[0], 'o': output_list[1], 'h': output_list[2], 'l': output_list[3],
                   'c': output_list[4], 'v': output_list[5]}
             mycol = app.store[symbol + "-5m"]
@@ -159,7 +145,6 @@ def process_15m_data():
     from flask import current_app as app
     start = time.time()
     r = redis.Redis(host='localhost', port=6379, db=0)
-    # library = app.store['BINANCE_EXCHANGE']
     symbols = json.loads(r.get("symbols"))
     start_15_min = (start // 60) // 15
     start_15_min = int(start_15_min - 1)
@@ -203,7 +188,6 @@ def process_15m_data():
 def process_30m_data():
     start = time.time()
     r = redis.Redis(host='localhost', port=6379, db=0)
-    # library = app.store['BINANCE_EXCHANGE']
     symbols = json.loads(r.get("symbols"))
     start_30_min = (start // 60) // 30
     start_30_min = int(start_30_min - 1)
@@ -230,9 +214,6 @@ def process_30m_data():
         output_list = [(int(start_30_min * 30 * 60)), open, high, low, close, volume]
         if not r.exists(str(start_30_min * 30 * 60) + symbol + "-30m"):
             r.set(str(start_30_min * 30 * 60) + symbol + "-30m", str(json.dumps(output_list)), ex=70 * 60)
-            # output_list[0] = pd.to_datetime(output_list[0] / 1000, unit='s').tz_localize("GMT")
-            # df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])
-            # df.set_index('t', inplace=True)
             df = {"t": output_list[0], 'o': output_list[1], 'h': output_list[2], 'l': output_list[3],
                   'c': output_list[4], 'v': output_list[5]}
             mycol = app.store[symbol + "-30m"]
@@ -251,7 +232,6 @@ def process_60m_data():
     start = time.time()
     r = redis.Redis(host='localhost', port=6379, db=0)
     symbols = json.loads(r.get("symbols"))
-    # library = app.store['BINANCE_EXCHANGE']
     start_60_min = (start // 60) //60
     start_60_min = int(start_60_min - 1)
     for symbol in symbols:
