@@ -61,7 +61,7 @@ def process_1m_data():
                     t1 = time.time()
                     # data[0][0] = pd.to_datetime(data[0][0], unit='ms') # converting epochs to timestamp utc
                     li = data[0]
-                    df = {"_id": li[0], 'o': li[1], 'h': li[2], 'l': li[3], 'c': li[4], 'v': li[5]}
+                    df = {"t": li[0], 'o': li[1], 'h': li[2], 'l': li[3], 'c': li[4], 'v': li[5]}
                     ret.append(time.time() - t1)
                     t1 = time.time()
                     # library.append(symbol + "-1m", df, upsert=True)  # writing dataframe to the arctic db
@@ -139,7 +139,7 @@ def process_5m_data():
             # output_list[0] = pd.to_datetime(output_list[0] / 1000, unit='s').tz_localize("GMT")
             # df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])
             # df.set_index('t', inplace=True)
-            df = {"_id": output_list[0], 'o': output_list[1], 'h': output_list[2], 'l': output_list[3],
+            df = {"t": output_list[0], 'o': output_list[1], 'h': output_list[2], 'l': output_list[3],
                   'c': output_list[4], 'v': output_list[5]}
             mycol = app.store[symbol + "-5m"]
             mycol.insert_one(df)
@@ -186,7 +186,7 @@ def process_15m_data():
         output_list = [int(start_15_min*15*6), open, high, low, close, volume]
         if not r.exists(str(start_15_min*15*60) + symbol + "-15m"):
             r.set(str(start_15_min*15*60) + symbol + "-15m", str(json.dumps(output_list)), ex=40 * 60)
-            df = {"_id": output_list[0], 'o': output_list[1], 'h': output_list[2], 'l': output_list[3],
+            df = {"t": output_list[0], 'o': output_list[1], 'h': output_list[2], 'l': output_list[3],
                   'c': output_list[4], 'v': output_list[5]}
             mycol = app.store[symbol + "-15m"]
             mycol.insert_one(df)
@@ -233,7 +233,7 @@ def process_30m_data():
             # output_list[0] = pd.to_datetime(output_list[0] / 1000, unit='s').tz_localize("GMT")
             # df = pd.DataFrame([output_list], columns=['t', 'o', 'h', 'l', 'c', 'v'])
             # df.set_index('t', inplace=True)
-            df = {"_id": output_list[0], 'o': output_list[1], 'h': output_list[2], 'l': output_list[3],
+            df = {"t": output_list[0], 'o': output_list[1], 'h': output_list[2], 'l': output_list[3],
                   'c': output_list[4], 'v': output_list[5]}
             mycol = app.store[symbol + "-30m"]
             mycol.insert_one(df)
@@ -277,7 +277,7 @@ def process_60m_data():
         output_list = [(int(start_60_min * 60 * 60)), open, high, low, close, volume]
         if not r.exists(str(start_60_min * 60 * 60) + symbol + "-60m"):
             r.set(str(start_60_min * 60 * 60) + symbol + "-60m", str(json.dumps(output_list)), ex=100 * 60)
-            df = {"_id": output_list[0], 'o': output_list[1], 'h': output_list[2], 'l': output_list[3],
+            df = {"t": output_list[0], 'o': output_list[1], 'h': output_list[2], 'l': output_list[3],
                   'c': output_list[4], 'v': output_list[5]}
             mycol = app.store[symbol + "-60m"]
             mycol.insert_one(df)
