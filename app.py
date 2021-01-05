@@ -294,14 +294,25 @@ def check_data_quality():
     from flask import current_app as app
     r = redis.Redis(host='localhost', port=6379, db=0)
     symbols = json.loads(r.get("symbols"))
-    myquery = {
+    query_for_1m = {
         "t": {
-            "$gte": 1609784160000,
-            "$lte": 1609819908000
+            "$gte": 1609785000000,
+            "$lte": 1609821000000
         }
     }
-    mycol = app.store["BTC/USDT-1m"]
-    x = mycol.count_documents(myquery)
+    query = {
+        "t": {
+            "$gte": 1609785000,
+            "$lte": 1609821000
+        }
+    }
+    query_for_15m = {
+        "t": {
+            "$gte": 160978500,
+            "$lte": 160982100
+        }
+    }
+
     min = 480
     count = 0
     with open("report.txt", 'w') as rep:  # File that is attached in the mail
@@ -309,23 +320,23 @@ def check_data_quality():
             try:
                 # calculating missing data due to 1m job
                 rep.write("\n\nFor symbol " + symbol + "\n")
-                df = app.store[symbol+"-1m"].count_documents(myquery)
+                df = app.store[symbol+"-1m"].count_documents(query_for_1m)
                 rep.write(symbol + " percentage of 1m data fetched: " + str(df * 100 / min) + "\n")
 
                 # calculating missing data due to 5m job
-                df = app.store[symbol + "-5m"].count_documents(myquery)
+                df = app.store[symbol + "-5m"].count_documents(query)
                 rep.write(symbol + " percentage of 5m data fetched: " + str(df * 100 / (min//5)) + "\n")
 
                 # calculating missing data due to 15m job
-                df = app.store[symbol + "-15m"].count_documents(myquery)
+                df = app.store[symbol + "-15m"].count_documents(query_for_15m)
                 rep.write(symbol + " percentage of 15m data fetched: " + str(df * 100 / (min // 15)) + "\n")
 
                 # calculating missing data due to 30m job
-                df = app.store[symbol + "-30m"].count_documents(myquery)
+                df = app.store[symbol + "-30m"].count_documents(query)
                 rep.write(symbol + " percentage of 30m data fetched: " + str(df * 100 / (min // 30)) + "\n")
 
                 # calculating missing data due to 60m job
-                df = app.store[symbol + "-60m"].count_documents(myquery)
+                df = app.store[symbol + "-60m"].count_documents(query)
                 rep.write(symbol + " percentage of 60m data fetched: " + str(df * 100 / (min // 60)) + "\n")
 
             except Exception as e:
