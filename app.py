@@ -288,79 +288,79 @@ def process_60m_data():
 # cron job to check the quality of data fetched
 # mails daily report
 # Job Triggers in every 24 minute starting at 00:00
-# @crontab.job(minute="0", hour="0")
-# @app.route('/check_data_quality')
-# def check_data_quality():
-#     from flask import current_app as app
-#     library = app.store['BINANCE_EXCHANGE']
-#     r = redis.Redis(host='localhost', port=6379, db=0)
-#     symbols = json.loads(r.get("symbols"))
-#     dr = DateRange(datetime.datetime.utcfromtimestamp(time.time()) - datetime.timedelta(hours=24),
-#                   datetime.datetime.utcfromtimestamp(time.time()))  # DateRange for last 24 hours in utc timestamp
-#     count = 0
-#     with open("report.txt", 'w') as rep:  # File that is attached in the mail
-#         for symbol in symbols:
-#             try:
-#                 # calculating missing data due to 1m job
-#                 rep.write("\n\nFor symbol " + symbol + "\n")
-#                 df = library.read(symbol + "-1m", date_range=dr).data
-#                 count = len(df.index)
-#                 rep.write(symbol + "missed 1m data percentage: " + str((480 - count) * 100 / 480) + "\n")
-#
-#                 # calculating missing data due to 5m job
-#                 df = library.read(symbol + "-5m", date_range=dr).data
-#                 count = len(df.index)
-#                 rep.write(symbol + "missed 5m data percentage: " + str((96 - count) * 100 / 96) + "\n")
-#
-#                 # calculating missing data due to 15m job
-#                 df = library.read(symbol + "-15m", date_range=dr).data
-#                 count = len(df.index)
-#                 rep.write(symbol + "missed 15m data percentage: " + str((32 - count) * 100 / 32) + "\n")
-#
-#                 # calculating missing data due to 30m job
-#                 df = library.read(symbol + "-30m", date_range=dr).data
-#                 count = len(df.index)
-#                 rep.write(symbol + "missed 30m data percentage: " + str((16 - count) * 100 / 16) + "\n")
-#
-#                 # calculating missing data due to 60m job
-#                 df = library.read(symbol + "-60m", date_range=dr).data
-#                 count = len(df.index)
-#                 rep.write(symbol + "missed 60m data percentage: " + str((8 - count) * 100 / 8) + "\n")
-#
-#             except Exception as e:
-#                 print(e)
-#                 count += 1
-#     try:
-#         print(count)
-#
-#         sender_address = 'saksham.jain2109@gmail.com'
-#         sender_pass = 'Vmc1234$'
-#         receiver_address = 'jainsaksham36b@gmail.com'
-#         # Setup the MIME
-#         message = MIMEMultipart()
-#         message['From'] = sender_address
-#         message['To'] = receiver_address
-#         message['Subject'] = 'Daily report for Fetch data'
-#         message.attach(MIMEText("Hello\n please find the daily report", 'plain'))
-#         attach_file_name = 'report.txt'
-#         attach_file = open(attach_file_name, 'rb')  # Open the file as binary mode
-#         payload = MIMEBase('application', 'octate-stream')
-#         payload.set_payload((attach_file).read())
-#         encoders.encode_base64(payload)  # encode the attachment
-#         # add payload header with filename
-#         payload.add_header('Content-Decomposition', 'attachment', filename=attach_file_name)
-#         message.attach(payload)
-#         # Create SMTP session for sending the mail
-#         session = smtplib.SMTP('smtp.gmail.com', 587)  # use gmail with port
-#         session.starttls()  # enable security
-#         session.login(sender_address, sender_pass)  # login with mail_id and password
-#         text = message.as_string()
-#         session.sendmail(sender_address, receiver_address, text)
-#         session.quit()
-#     except Exception as e:
-#         print(e)
-#     m.close()
-#     return "Job ended"
+@crontab.job(minute="0", hour="0")
+@app.route('/check_data_quality')
+def check_data_quality():
+    from flask import current_app as app
+    r = redis.Redis(host='localhost', port=6379, db=0)
+    symbols = json.loads(r.get("symbols"))
+    myquery = {
+        "t": {
+            "$gte": 1609784160000,
+            "$lte": 1609819908000
+        }
+    }
+    mycol = app.store["BTC/USDT-1m"]
+    x = mycol.count_documents(myquery)
+    min = 480
+    count = 0
+    with open("report.txt", 'w') as rep:  # File that is attached in the mail
+        for symbol in symbols:
+            try:
+                # calculating missing data due to 1m job
+                rep.write("\n\nFor symbol " + symbol + "\n")
+                df = app.store[symbol+"-1m"].count_documents(myquery)
+                rep.write(symbol + " percentage of 1m data fetched: " + str(df * 100 / min) + "\n")
+
+                # calculating missing data due to 5m job
+                df = app.store[symbol + "-5m"].count_documents(myquery)
+                rep.write(symbol + " percentage of 5m data fetched: " + str(df * 100 / (min//5)) + "\n")
+
+                # calculating missing data due to 15m job
+                df = app.store[symbol + "-15m"].count_documents(myquery)
+                rep.write(symbol + " percentage of 15m data fetched: " + str(df * 100 / (min // 15)) + "\n")
+
+                # calculating missing data due to 30m job
+                df = app.store[symbol + "-30m"].count_documents(myquery)
+                rep.write(symbol + " percentage of 30m data fetched: " + str(df * 100 / (min // 30)) + "\n")
+
+                # calculating missing data due to 60m job
+                df = app.store[symbol + "-60m"].count_documents(myquery)
+                rep.write(symbol + " percentage of 60m data fetched: " + str(df * 100 / (min // 60)) + "\n")
+
+            except Exception as e:
+                print(e)
+                count += 1
+    try:
+        print(count)
+
+        sender_address = 'saksham.jain2109@gmail.com'
+        sender_pass = '****'
+        receiver_address = 'jainsaksham36b@gmail.com'
+        # Setup the MIME
+        message = MIMEMultipart()
+        message['From'] = sender_address
+        message['To'] = receiver_address
+        message['Subject'] = 'Daily report for Fetch data'
+        message.attach(MIMEText("Hello\n please find the daily report", 'plain'))
+        attach_file_name = 'report.txt'
+        attach_file = open(attach_file_name, 'rb')  # Open the file as binary mode
+        payload = MIMEBase('application', 'octate-stream')
+        payload.set_payload((attach_file).read())
+        encoders.encode_base64(payload)  # encode the attachment
+        # add payload header with filename
+        payload.add_header('Content-Decomposition', 'attachment', filename=attach_file_name)
+        message.attach(payload)
+        # Create SMTP session for sending the mail
+        session = smtplib.SMTP('smtp.gmail.com', 587)  # use gmail with port
+        session.starttls()  # enable security
+        session.login(sender_address, sender_pass)  # login with mail_id and password
+        text = message.as_string()
+        session.sendmail(sender_address, receiver_address, text)
+        session.quit()
+    except Exception as e:
+        print(e)
+    return "Job ended"
 
 
 if __name__ == "__main__":
