@@ -168,7 +168,7 @@ def process_15m_data():
                 high = max(high, row[2])
                 low = min(low, row[3])
                 r.delete(key)  # Freeing cache after use
-        output_list = [int(start_15_min*15*6), open, high, low, close, volume]
+        output_list = [int(start_15_min*15*60), open, high, low, close, volume]
         if not r.exists(str(start_15_min*15*60) + symbol + "-15m"):
             r.set(str(start_15_min*15*60) + symbol + "-15m", str(json.dumps(output_list)), ex=40 * 60)
             df = {"t": output_list[0], 'o': output_list[1], 'h': output_list[2], 'l': output_list[3],
